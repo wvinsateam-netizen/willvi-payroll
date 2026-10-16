@@ -26,6 +26,11 @@ const ISSUE_TYPES=["임금·체불","근로시간·연장","휴가·휴직","징
 const STATUSES=["접수","진행중","완료"];
 const RISKS=["높음","보통","낮음"];
 const NOTE_TYPES=["수당","공제","소급·정산","입·퇴사","휴직·복직","청구","기타"];
+// 엑셀 원본이 바뀐 값을 이미 저장된 데이터에도 반영 (현재 값이 예전 값 그대로일 때만 바꿈 → 직접 고친 값은 유지)
+// [사업장 id, 항목, 예전 값, 새 값]
+const DATA_FIXES=[
+  ["s03","경영지원본부 인사담당자","강미리","주예린"],["s04","경영지원본부 인사담당자","강미리","주예린"],
+  ["s07","경영지원본부 인사담당자","강미리","주예린"],["s08","경영지원본부 인사담당자","강미리","주예린"]];
 const DEFAULT_WAGE=[
   ["기본급",true,"고정","매월"],["직책수당",true,"고정","매월"],["자격수당",true,"고정","매월"],["근속수당",true,"고정","매월"],
   ["식대",false,"고정","매월"],["교통비",false,"실비","매월"],["가족수당",false,"고정","매월"],["정기상여금",true,"고정","분기"],
@@ -369,12 +374,18 @@ async function boot(){
     $("#bkReset").textContent="이 브라우저 데이터 올리기";$("#bkReset").classList.remove("danger")}
   else db=window.LocalDB;
   render();
-  sub("sites",a=>S.sites=a.map(x=>({...x,f:x.f||{}})));
+  sub("sites",a=>{S.sites=a.map(x=>({...x,f:x.f||{}}));applyFixes()});
   sub("issues",a=>S.issues=a);
   sub("notes",a=>S.notes=a);
   sub("wages",a=>{const m={};a.forEach(x=>m[x.id]=x);S.wages=m});
   sub("wagenotes",a=>{const m={};a.forEach(x=>m[x.id]=x);S.wagenotes=m});
 }
+let fixing=false;
+async function applyFixes(){if(readOnly||fixing)return;const by={};DATA_FIXES.forEach(([id,k,from,to])=>{const s=S.sites.find(x=>x.id===id);if(s&&s.f[k]===from)(by[id]=by[id]||{...s.f})[k]=to});
+  if(!Object.keys(by).length)return;fixing=true;
+  try{for(const id in by)await db.doc("sites/"+id).update({f:by[id],updatedAt:new Date().toISOString()});fixing=false}
+  catch(e){console.error(e);return} // 실패하면 이번 접속 동안은 다시 시도하지 않음
+  applyFixes()}
 /* 백업 */
 $("#bkExport").onclick=()=>dl.save({filename:`급여기초_전체_${today()}.csv`,data:new Blob([sitesCsv(sitesSorted())],{type:"text/csv;charset=utf-8"})});
 $("#bkImport").onclick=()=>$("#bkFile").click();
