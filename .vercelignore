@@ -1,0 +1,7 @@
+# 배포 사이트에 올리지 않을 파일 (누구나 주소로 열 수 있게 되므로)
+# 사업장 원본 정보는 공유 DB(supabase/seed.sql)로만 넣습니다.
+data/
+supabase/
+tools/
+.vscode/
+README.md

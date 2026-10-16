@@ -54,7 +54,7 @@ function siteOptions(sel,withAll,allLabel){const v=sel.value;sel.innerHTML=(with
 async function fillNames(){if(!user||!user.profiles)return;const ids=[...new Set($$("[data-uid]").map(e=>e.dataset.uid).filter(Boolean))];if(!ids.length)return;
   try{const ps=await user.profiles(ids);ids.forEach(id=>{names[id]=(ps&&ps[id]&&ps[id].name)||"";});}catch(e){}
   $$("[data-uid]").forEach(e=>{e.textContent=names[e.dataset.uid]||"작성자"})}
-const who=id=>id?`<span data-uid="${esc(id)}">${esc(names[id]||"작성자")}</span>`:"";
+const who=id=>id?`<span data-uid="${esc(id)}">${esc(names[id]||(String(id).includes("@")?String(id).split("@")[0]:"작성자"))}</span>`:"";
 
 /* ---------- 내비 ---------- */
 $("#nav").addEventListener("click",e=>{const b=e.target.closest("button[data-v]");if(!b)return;go(b.dataset.v)});
@@ -351,10 +351,14 @@ function drawMatrix(){const ids=sitesSorted().map(s=>s.id).filter(id=>S.wages[id
     return `<tr style="cursor:pointer" data-w="${esc(id)}"><td><b>${esc(siteName(id))}</b></td>${items.map(n=>`<td>${m[n]?(m[n].inc?'<span class="dot-y">●</span>':'<span class="muted">○</span>'):""}</td>`).join("")}<td class="mono">${wageSum(w.items)?won(wageSum(w.items)/(+w.hours||209)):"—"}</td></tr>`}).join("")}</tbody></table>`;
   $$("#wMatrix [data-w]").forEach(tr=>tr.onclick=()=>{if(S.wDirty){toast("저장하지 않은 변경이 있습니다. 먼저 저장하세요.");return}S.wSite=tr.dataset.w;S.wDraft=null;refWages();window.scrollTo(0,0)})}
 
-/* ---------- 데이터 연결 (로컬 저장소: js/store.js) ---------- */
+/* ---------- 데이터 연결 (공유 DB: js/cloud.js, 없으면 로컬 저장소: js/store.js) ---------- */
 window.WV={go,close:closeDrawer};
-db=window.LocalDB;
 dl={save:async({filename,data})=>{const a=document.createElement("a");a.href=URL.createObjectURL(data);a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1500)}};
+(window.DBReady||Promise.resolve({db:window.LocalDB})).then(r=>{db=r.db;if(r.user){uid=r.user.email;
+  $("#conn").innerHTML=`공유 DB · ${esc(uid)} <button class="btn sm" id="logout">로그아웃</button>`;$("#logout").onclick=()=>db.signOut();
+  $("#bkReset").style.display="none"}
+  start()}).catch(e=>{console.error(e);$("#main").innerHTML=`<div class="empty"><b>공유 DB에 연결하지 못했습니다</b>${esc(e.message||"")} 새로고침해서 다시 시도하세요.</div>`});
+function start(){
 render();
 const sub=(col,fn)=>db.collection(col).onSnapshot(snap=>{fn(snap.docs.map(d=>({id:d.id,...d.data()})));S.loaded[col]=true;refresh()});
 sub("sites",a=>S.sites=a.map(x=>({...x,f:x.f||{}})));
@@ -364,8 +368,10 @@ sub("wages",a=>{const m={};a.forEach(x=>m[x.id]=x);S.wages=m});
 sub("wagenotes",a=>{const m={};a.forEach(x=>m[x.id]=x);S.wagenotes=m});
 /* 백업 */
 $("#bkExport").onclick=()=>dl.save({filename:`급여기초_전체_${today()}.csv`,data:new Blob([sitesCsv(sitesSorted())],{type:"text/csv;charset=utf-8"})});
+$("#bkJson").onclick=()=>dl.save({filename:`급여노무_백업_${today()}.json`,data:new Blob([db.exportJSON()],{type:"application/json"})});
 $("#bkImport").onclick=()=>$("#bkFile").click();
-$("#bkFile").onchange=async e=>{const f=e.target.files[0];if(!f)return;try{db.importJSON(await f.text());toast("백업을 불러왔습니다")}catch(x){toast("불러오지 못했습니다: "+(x.message||"파일 형식을 확인하세요"))}e.target.value=""};
+$("#bkFile").onchange=async e=>{const f=e.target.files[0];if(!f)return;try{await db.importJSON(await f.text());toast("백업을 불러왔습니다")}catch(x){toast("불러오지 못했습니다: "+(x.message||"파일 형식을 확인하세요"))}e.target.value=""};
 $("#bkReset").onclick=e=>armDelete(e.currentTarget,()=>{db.reset();toast("엑셀 원본 상태로 초기화했습니다")});
+}
 
 })();

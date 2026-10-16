@@ -58,7 +58,30 @@ python tools/excel_to_seed.py "급여기초.xlsx"
 | 급여 특이사항 구분 | `NOTE_TYPES` |
 | 통상임금 기본 항목 틀 | `DEFAULT_WAGE` |
 
-## 팀이 함께 쓰려면
+## 팀이 함께 쓰려면 (Supabase 공유 DB + Vercel 배포)
 
-지금 구조는 한 PC용입니다. 여러 명이 같은 데이터를 보려면 `js/store.js`를 서버 DB(예: Firebase, Supabase, 사내 서버)에 연결하는 방식으로 바꾸면 됩니다.
-`app.js`는 `store.js`의 `collection / doc / onSnapshot / set / update / delete`만 쓰므로 화면 코드는 그대로 둘 수 있습니다.
+`js/config.js`에 Supabase 주소와 키를 넣으면 로그인 화면이 나오고, 데이터가 공유 DB에 저장됩니다.
+비워 두면 위의 "데이터 저장 방식"처럼 브라우저에만 저장합니다.
+
+### 처음 한 번 설정
+
+1. **Supabase 프로젝트 만들기**: Vercel 프로젝트 → Storage → Supabase로 만들거나, supabase.com에서 직접 만듭니다.
+2. **테이블 만들기**: Supabase → SQL Editor에 `supabase/schema.sql`을 통째로 붙여넣고 Run 합니다.
+3. **사업장 정보 넣기**: `supabase/seed.sql`을 SQL Editor에 붙여넣고 Run 합니다.
+   (엑셀이 바뀌면 `python tools/excel_to_seed.py ...` → `python tools/seed_to_sql.py` 순서로 다시 만듭니다. 이미 있는 사업장은 덮어쓰지 않습니다.)
+4. **회원가입 막기**: Authentication → Sign In / Providers → **Allow new users to sign up 끄기**.
+5. **사용자 등록** (한 명마다):
+   - Authentication → Users → **Add user → Create new user**로 이메일·비밀번호를 만듭니다. (Auto Confirm 체크)
+   - SQL Editor에서 사용 권한을 줍니다:
+     `insert into public.members (email, name) values ('이메일', '이름');`
+   - 권한을 뺄 때: `delete from public.members where email = '이메일';`
+6. **키 넣기**: Supabase → Project Settings → API의 **Project URL**과 **anon public** 키를 `js/config.js`에 넣고 커밋합니다.
+   anon 키는 공개되어도 되는 키입니다. **service_role 키는 절대 넣지 마세요.**
+7. **배포**: GitHub에 push 하면 Vercel이 자동으로 배포합니다. (Vercel 설정: Preset `Other`, Build Command 비움)
+
+### 알아둘 점
+
+- `data/`, `supabase/`, `tools/`는 `.vercelignore`로 배포에서 빠집니다. 사업장 원본이 공개 주소로 노출되지 않게 하기 위해서입니다.
+- 기존에 브라우저에 입력해 둔 내용은: 예전 방식(키를 비운 상태)으로 열어 **백업 저장** → 공유 DB에 로그인한 뒤 **백업 불러오기**. 공유 DB에서는 덮어쓰기가 아니라 **합치기**로 들어갑니다.
+- 공유 DB에서는 **엑셀 원본으로 초기화** 버튼이 숨겨집니다. (모든 사람의 데이터가 지워지는 것을 막기 위해)
+- 다른 사람이 저장한 내용은 새로고침 없이 바로 반영됩니다. 같은 항목을 동시에 고치면 나중에 저장한 쪽이 남습니다.

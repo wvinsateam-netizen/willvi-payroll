@@ -20,7 +20,7 @@
       <button data-v="wages"><span class="k">04</span>통상임금<span class="cnt" id="c-wages">0</span></button>
     </nav>
     <div class="side-foot"><div id="conn">이 브라우저에 저장됨</div>
-      <div class="tools"><button class="btn sm" id="bkExport">엑셀로 저장</button><button class="btn sm" id="bkImport">백업 불러오기</button><button class="btn sm danger" id="bkReset">엑셀 원본으로 초기화</button></div>
+      <div class="tools"><button class="btn sm" id="bkExport">엑셀로 저장</button><button class="btn sm" id="bkJson">백업 저장</button><button class="btn sm" id="bkImport">백업 불러오기</button><button class="btn sm danger" id="bkReset">엑셀 원본으로 초기화</button></div>
       <input type="file" id="bkFile" accept=".json,application/json" hidden></div>
   </aside>
   <main id="main"></main>
@@ -28,7 +28,9 @@
 <div id="drawer-root"></div>
 
 <script src="data/seed-sites.js"></script>
+<script src="js/config.js"></script>
 <script src="js/store.js"></script>
+<script src="js/cloud.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
