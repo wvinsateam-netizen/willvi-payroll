@@ -65,7 +65,7 @@ main{min-width:0;padding-block:24px 48px;padding-left:28px;padding-right:max(28p
 .btn.danger.arm{background:var(--bad);color:var(--surface);border-color:var(--bad)}
 .btn:disabled{opacity:.5;cursor:not-allowed}
 label.f,div.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);font-weight:500;min-width:0}
-.cbox{display:flex;gap:18px;height:36px;align-items:center;color:var(--ink);font-size:14px}
+.cbox{display:flex;flex-wrap:wrap;gap:6px 18px;min-height:36px;align-items:center;color:var(--ink);font-size:14px}
 .cbox label{display:flex;align-items:center;gap:6px;cursor:pointer}
 .cbox input{width:16px;height:16px;accent-color:var(--brand);margin:0}
 input.i,select.i,textarea.i{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:7px 9px;font-size:14px;color:var(--ink);width:100%;min-width:0}

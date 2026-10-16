@@ -1,7 +1,7 @@
 (function(){
 "use strict";
 /* ---------- 상수 ---------- */
-const COLS=["순번","등록일","사업장명","사업자번호","대표자명","계약유지상태","최초계약일","최근재계약일","업무담당자명","업무담당자 연락처","사업장 코드","원가중심점","급여관련특이사항","경영지원본부 인사담당자","소속부서","사업부담당자","사업부담당자 연락처","CRM 전화응대 담당자","전화 응대 연락처","급여/총무 담당자","급여 총무 연락처","청구 급여 업무 담당자","근태/연차 관리 담당자","급여일","급여산정 시작일","급여산정 종료일","파견/도급구분","사업장 주소지(실근무지)","업무내용","계약형태 (도급, I/H, F/O, 파견)","업무형태 (I/B,O/B,파견 등)","청구형태 (인원, 콜, 업무도급, 성과유지 등)","퇴직금 적립방식","퇴직금적립방식 변경사항 (발생대상 사업장만 작성)","연차수당 적립방식","신원보증보험","근로자의날 선물 여부","계약시작일 (재계약일)","직접비율","매출비 품의","월청구분 당사입금일","퇴직연금DC사업장 근로계약 필수 작성시기","기타","특이사항","사업장명 변경 전(2024-12)","생일축하금 (금액기재)","설,추석 선물 여부","산재개시번호"];
+const COLS=["순번","등록일","사업장명","사업자번호","대표자명","계약유지상태","최초계약일","최근재계약일","업무담당자명","업무담당자 연락처","사업장 코드","원가중심점","급여관련특이사항","경영지원본부 인사담당자","소속부서","사업부담당자","사업부담당자 연락처","CRM 전화응대 담당자","전화 응대 연락처","급여/총무 담당자","급여 총무 연락처","청구 급여 업무 담당자","근태/연차 관리 담당자","급여일","급여산정 시작일","급여산정 종료일","파견/도급구분","사업장 주소지(실근무지)","업무내용","계약형태 (도급, I/H, F/O, 파견)","업무형태 (I/B,O/B,파견 등)","청구형태 (인원, 콜, 업무도급, 성과유지 등)","계약형태","근로자 근무형태","퇴직금 적립방식","퇴직금적립방식 변경사항 (발생대상 사업장만 작성)","연차수당 적립방식","신원보증보험","근로자의날 선물 여부","계약시작일 (재계약일)","직접비율","매출비 품의","월청구분 당사입금일","퇴직연금DC사업장 근로계약 필수 작성시기","기타","특이사항","사업장명 변경 전(2024-12)","생일축하금 (금액기재)","설,추석 선물 여부","산재개시번호"];
 const NAME="사업장명";
 const BASIC=["사업자번호",NAME,"대표자명","계약유지상태","최초계약일","최근재계약일","업무담당자명","업무담당자 연락처"];
 // 화면에 보이는 이름만 바꿈 (저장 데이터·엑셀 열 이름은 그대로)
@@ -9,10 +9,13 @@ const LABELS={"사업장 코드":"BMP 사업장 코드"};
 const lbl=k=>LABELS[k]||k;
 const CONTRACT_STATES=["계약","종료"];
 const DATE_COLS=["최초계약일","최근재계약일"];
+// 중복 체크 항목: 값은 "도급직, 파견직"처럼 쉼표로 이어 저장
+const MULTI={"계약형태":["도급직","파견직","계약직","기타"],"근로자 근무형태":["주40시간","단시간","초단기","2교대","3교대","감단직","일용직"]};
+const splitMulti=v=>String(v||"").split(",").map(x=>x.trim()).filter(Boolean);
 const GROUPS={
   "기본":["사업장 코드","원가중심점","소속부서","파견/도급구분","업무내용","급여일","경영지원본부 인사담당자"],
   "업무담당자":["소속부서","사업부담당자","사업부담당자 연락처","CRM 전화응대 담당자","전화 응대 연락처","급여/총무 담당자","급여 총무 연락처","청구 급여 업무 담당자","근태/연차 관리 담당자","경영지원본부 인사담당자"],
-  "계약·청구":["파견/도급구분","계약형태 (도급, I/H, F/O, 파견)","업무형태 (I/B,O/B,파견 등)","청구형태 (인원, 콜, 업무도급, 성과유지 등)","계약시작일 (재계약일)","직접비율","매출비 품의","월청구분 당사입금일","사업장 주소지(실근무지)","산재개시번호"],
+  "계약·청구":["파견/도급구분","계약형태 (도급, I/H, F/O, 파견)","업무형태 (I/B,O/B,파견 등)","청구형태 (인원, 콜, 업무도급, 성과유지 등)","계약형태","근로자 근무형태","계약시작일 (재계약일)","직접비율","매출비 품의","월청구분 당사입금일","사업장 주소지(실근무지)","산재개시번호"],
   "급여":["급여일","급여산정 시작일","급여산정 종료일","급여관련특이사항","퇴직금 적립방식","퇴직금적립방식 변경사항 (발생대상 사업장만 작성)","연차수당 적립방식","퇴직연금DC사업장 근로계약 필수 작성시기"],
   "복리후생":["신원보증보험","근로자의날 선물 여부","생일축하금 (금액기재)","설,추석 선물 여부"],
   "비고":["기타","특이사항","사업장명 변경 전(2024-12)","등록일","순번"],
@@ -147,6 +150,7 @@ function renderDrawer(){const root=$("#drawer-root");if(!S.drawer){root.innerHTM
   const tabs=[["info","기본 정보"],["issues",`노무 문제 ${iss.length}`],["notes",`급여 특이사항 ${nts.length}`],["wages","통상임금"]];
   let body="";
   if(S.dEdit){body=`<form id="siteForm" class="form">${COLS.map((k,i)=>{if(k==="계약유지상태")return `<div class="f"><span>${esc(lbl(k))}</span><span class="cbox">${CONTRACT_STATES.map(v=>`<label><input type="checkbox" data-k="${esc(k)}" value="${esc(v)}" ${s.f[k]===v?"checked":""}>${esc(v)}</label>`).join("")}</span></div>`;
+    if(MULTI[k]){const on=splitMulti(s.f[k]);return `<div class="f"><span>${esc(lbl(k))}</span><span class="cbox">${MULTI[k].map(v=>`<label><input type="checkbox" data-k="${esc(k)}" value="${esc(v)}" ${on.includes(v)?"checked":""}>${esc(v)}</label>`).join("")}</span></div>`}
     if(DATE_COLS.includes(k))return `<label class="f">${esc(lbl(k))}<input class="i" type="date" id="sfld${i}" data-k="${esc(k)}" value="${esc(s.f[k]||"")}"></label>`;const long=/주소|특이사항|기타|업무내용/.test(k);return `<label class="f">${esc(lbl(k))}${long?`<textarea class="i" id="sfld${i}" data-k="${esc(k)}" rows="2">${esc(s.f[k]||"")}</textarea>`:`<input class="i" id="sfld${i}" data-k="${esc(k)}" value="${esc(s.f[k]||"")}" ${k===NAME?"required":""}>`}</label>`}).join("")}
     <div style="display:flex;gap:8px;position:sticky;bottom:0;background:var(--surface);padding-block:10px"><button class="btn pri" type="submit">저장</button><button class="btn" type="button" id="dCancel">취소</button>${isNew?"":`<button class="btn danger" type="button" id="dDel" style="margin-left:auto">사업장 삭제</button>`}</div></form>`}
   else if(S.dTab==="info"){const sec=(t,ks)=>`<section><h3 class="sec-t">${esc(t)}</h3><dl class="kv">${ks.map(k=>`<dt>${esc(lbl(k))}</dt><dd class="${/연락처|코드|번호/.test(k)?"mono":""}">${k==="계약유지상태"&&s.f[k]?`<span class="pill ${s.f[k]==="계약"?"p-acc":"p-neutral"}">${esc(s.f[k])}</span>`:esc(s.f[k]||"—")}</dd>`).join("")}</dl></section>`;
@@ -170,7 +174,7 @@ function renderDrawer(){const root=$("#drawer-root");if(!S.drawer){root.innerHTM
   $("#dBg").onclick=closeDrawer;$("#dClose").onclick=closeDrawer;
   const ed=$("#dEdit");if(ed)ed.onclick=()=>{S.dEdit=true;root.innerHTML="";renderDrawer()};
   $$(".drawer .tabs button").forEach(b=>b.onclick=()=>{S.dTab=b.dataset.t;renderDrawer()});
-  const f=$("#siteForm");if(f){f.addEventListener("submit",async e=>{e.preventDefault();const nf={};$$("[data-k]",f).forEach(el=>{if(el.type==="checkbox"&&!el.checked)return;const v=el.value.trim();if(v)nf[el.dataset.k]=v});
+  const f=$("#siteForm");if(f){f.addEventListener("submit",async e=>{e.preventDefault();const nf={};$$("[data-k]",f).forEach(el=>{if(el.type==="checkbox"&&!el.checked)return;const k=el.dataset.k,v=el.value.trim();if(!v)return;nf[k]=MULTI[k]&&nf[k]?nf[k]+", "+v:v});
       const id=isNew?"s"+Date.now().toString(36):s.id;const order=isNew?(Math.max(0,...S.sites.map(x=>x.order||0))+1):(s.order||0);
       try{await db.doc("sites/"+id).set({order,f:nf,source:s.source||"직접 입력",updatedAt:new Date().toISOString(),updatedBy:uid||""});toast("저장했습니다");S.dEdit=false;S.drawer=id;$("#drawer-root").innerHTML="";renderDrawer()}catch(x){err(x)}});
     $$('input[type=checkbox][data-k="계약유지상태"]',f).forEach(cb=>cb.onchange=()=>{if(cb.checked)$$('input[type=checkbox][data-k="계약유지상태"]',f).forEach(o=>{if(o!==cb)o.checked=false})});
