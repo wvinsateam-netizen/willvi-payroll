@@ -54,7 +54,7 @@ const siteName=id=>{const s=S.sites.find(x=>x.id===id);return s?(s.f[NAME]||"(�
 const sitesSorted=()=>S.sites.slice().sort((a,b)=>(a.order??999)-(b.order??999));
 function toast(m){const t=document.createElement("div");t.className="toast";t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),2200)}
 function err(e){console.error(e);if(e&&e.code==="invalid_argument"){readOnly=true;toast("이 화면에서는 저장 권한이 없습니다. 보기 전용으로 전환합니다.");render();return}
-  if(e&&e.code==="permission_denied"){toast("저장 권한이 없습니다. 다시 로그인하거나 supabase/schema.sql 을 다시 실행하세요.");return}
+  if(e&&e.code==="permission_denied"){toast("저장 권한이 없습니다. 다시 로그인하거나 supabase/schema.sql 을 다시 실행하세요. ("+(e.message||"")+")");return}
   if(e&&e.code==="quota_exceeded"){toast("저장 공간이 가득 찼습니다. 오래된 기록을 삭제한 뒤 다시 시도하세요.");return}
   toast("저장하지 못했습니다. 잠시 후 다시 시도하세요.")}
 function hl(text,q){const t=esc(text);if(!q)return t;const i=t.toLowerCase().indexOf(esc(q).toLowerCase());if(i<0)return t;const n=esc(q).length;return t.slice(0,i)+"<mark>"+t.slice(i,i+n)+"</mark>"+t.slice(i+n)}

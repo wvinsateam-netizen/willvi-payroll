@@ -4,6 +4,8 @@
 -- 화면의 데이터 묶음(사업장·노무 문제·급여 특이사항·통상임금·통상임금 메모)마다 테이블 하나.
 -- 각 행은 id 와 내용(data, JSON) 으로 저장합니다. 항목(열)이 늘어나도 테이블을 고칠 필요가 없습니다.
 
+grant usage on schema public to authenticated;
+
 do $$
 declare t text;
 begin
@@ -13,6 +15,9 @@ begin
       data jsonb not null default ''{}''::jsonb,
       updated_at timestamptz not null default now()
     )', t);
+
+    -- 앱(로그인 사용자)이 테이블에 접근할 수 있게 권한 부여 (새 프로젝트는 자동으로 주지 않는 경우가 있음)
+    execute format('grant select, insert, update, delete on public.%I to authenticated', t);
 
     -- 로그인한 사용자(팀 공용 계정)만 읽고 쓸 수 있음
     -- ⚠️ Authentication 설정에서 "Allow new users to sign up" 을 꼭 끄세요. 켜져 있으면 누구나 가입해 접근할 수 있습니다.
