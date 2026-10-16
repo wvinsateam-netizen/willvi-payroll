@@ -18,9 +18,9 @@ willvi-payroll/
 ├─ index.html              화면 뼈대 (메뉴, 레이아웃)
 ├─ css/style.css           디자인 (색상은 맨 위 :root 에서 한 번에 바꿀 수 있음)
 ├─ js/app.js               화면 동작 (홈, 급여기초, 노무 문제, 급여 특이사항, 통상임금)
-├─ js/config.js            Supabase 주소·키 (비우면 브라우저에만 저장)
+├─ js/config.js            Supabase 설정 안내 (실제 값은 config.local.js, GitHub에 안 올라감)
 ├─ js/store.js             저장 기능 (브라우저 localStorage)
-├─ js/store-supabase.js    저장 기능 (Supabase 공용 저장소, 로그인)
+├─ js/store-supabase.js    저장 기능 (Supabase 공용 저장소)
 ├─ supabase/schema.sql     Supabase 테이블 만들기 SQL
 ├─ data/seed-sites.js      엑셀에서 가져온 사업장 정보 (처음 열 때 사용)
 ├─ tools/excel_to_seed.py  엑셀 → seed-sites.js 변환 스크립트
@@ -41,19 +41,26 @@ willvi-payroll/
 
 ## Supabase 연동 (팀 공용 저장소)
 
-`js/config.js`에 Supabase 주소와 키를 넣으면 브라우저 대신 Supabase에 저장합니다.
-로그인한 사람만 보고 고칠 수 있고, 다른 사람이 고친 내용은 바로 화면에 반영됩니다.
+Supabase 주소와 키를 `js/config.local.js`에 넣으면 브라우저 대신 Supabase에 저장합니다.
+로그인 없이 쓰며, 다른 사람이 고친 내용은 바로 화면에 반영됩니다.
 
-1. [supabase.com](https://supabase.com)에서 프로젝트를 만듭니다.
+> ⚠️ 로그인이 없어서 **주소와 키만 있으면 누구나 데이터를 읽고 지울 수 있습니다.**
+> 키는 `js/config.js`가 아니라 `js/config.local.js`에 넣으세요. 이 파일은 GitHub에 올라가지 않습니다.
+
+1. [supabase.com](https://supabase.com)에서 프로젝트를 만듭니다. Region은 Seoul을 권장합니다.
 2. **SQL Editor**에 `supabase/schema.sql` 내용을 붙여 넣고 **Run** 합니다.
-3. **Authentication → Users → Add user**로 팀원 계정(이메일·비밀번호)을 만듭니다.
-   - 아무나 가입하지 못하도록 **Authentication → Sign In / Providers**에서 "Allow new users to sign up"을 끄는 것을 권장합니다.
-4. **Project Settings → API**에서 Project URL과 `anon` `public` 키를 복사해 `js/config.js`에 넣습니다.
-   - `service_role` 키는 절대 넣지 마세요.
-5. 페이지를 열고 로그인합니다.
-6. **기존 데이터 옮기기**: 기존에 쓰던 PC·브라우저에서 로그인한 뒤, 왼쪽 아래 **이 브라우저 데이터 올리기**를 두 번 누릅니다.
-   - 그 브라우저에 저장돼 있던 사업장·노무 문제·급여 특이사항·통상임금이 모두 올라갑니다. 같은 항목은 덮어씁니다.
-   - 한 사람이 한 번만 하세요. 여러 사람이 올리면 마지막에 올린 내용으로 덮어써집니다.
+3. **Project Settings → API Keys**(또는 상단 **Connect**)에서 Project URL과 `anon` `public` 키를 복사합니다.
+   - `service_role`(secret) 키는 절대 쓰지 마세요.
+4. `js` 폴더에 `config.local.js` 파일을 새로 만들고 아래처럼 넣습니다.
+   ```js
+   window.WV_CONFIG = {
+     supabaseUrl: "https://abcdefgh.supabase.co",
+     supabaseAnonKey: "eyJhbGciOi..."
+   };
+   ```
+5. **기존 데이터 옮기기**: 기존에 쓰던 PC·브라우저·열기 방식 그대로 페이지를 열고, 왼쪽 아래 **이 브라우저 데이터 올리기**를 두 번 누릅니다.
+   - 같은 항목은 덮어씁니다. 한 사람이 한 번만 하세요.
+6. 팀원에게는 `config.local.js` 파일을 메신저 등으로 따로 전달해, 각자 `js` 폴더에 넣게 합니다.
 
 Supabase 모드에서는 "엑셀 원본으로 초기화" 버튼이 없습니다(공용 데이터를 한 번에 지우지 않도록).
 **백업 불러오기**는 백업 파일의 내용을 Supabase에 올리며, 백업에 없는 항목은 지우지 않습니다.

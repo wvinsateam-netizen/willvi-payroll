@@ -2,8 +2,8 @@
  * Supabase 저장소
  * - js/config.js 에 주소와 키를 넣으면 이 파일이 쓰입니다. 비어 있으면 js/store.js(로컬)를 씁니다.
  * - app.js 가 쓰는 인터페이스(collection/doc, onSnapshot, set/update/delete)는 store.js 와 같습니다.
- * - 테이블 구조는 supabase/schema.sql 참고: (id, data jsonb, updated_at, updated_by)
- * - 로그인: Supabase Auth 이메일·비밀번호. 계정은 Supabase 대시보드에서 관리자가 만듭니다.
+ * - 테이블 구조는 supabase/schema.sql 참고: (id, data jsonb, updated_at)
+ * - 로그인 없이 씁니다. 주소·키를 아는 사람은 누구나 읽고 쓸 수 있으니 키를 공개 장소에 올리지 마세요.
  */
 (function () {
   "use strict";
@@ -12,7 +12,7 @@
   var LIB = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js";
   var COLS = ["sites", "issues", "notes", "wages", "wagenotes"];
   var PAGE = 1000;
-  var sb = null, me = null;
+  var sb = null;
   var cache = {}, listeners = {}, started = {};
 
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
@@ -75,7 +75,7 @@
 
   /* ---------- 쓰기 ---------- */
   async function put(c, id, d) {
-    var r = await sb.from(c).upsert({ id: id, data: d, updated_at: new Date().toISOString(), updated_by: me && me.id });
+    var r = await sb.from(c).upsert({ id: id, data: d, updated_at: new Date().toISOString() });
     if (r.error) throw fail(r.error);
     (cache[c] = cache[c] || {})[id] = clone(d); emit(c);
   }
@@ -96,7 +96,7 @@
     };
   }
   async function upsertMany(c, m) {
-    var rows = Object.keys(m || {}).map(function (id) { return { id: id, data: m[id], updated_at: new Date().toISOString(), updated_by: me && me.id }; });
+    var rows = Object.keys(m || {}).map(function (id) { return { id: id, data: m[id], updated_at: new Date().toISOString() }; });
     for (var i = 0; i < rows.length; i += 500) {
       var r = await sb.from(c).upsert(rows.slice(i, i + 500));
       if (r.error) throw fail(r.error);
@@ -106,49 +106,17 @@
     for (var i = 0; i < COLS.length; i++) { var c = COLS[i]; if (started[c]) { cache[c] = await fetchAll(c); emit(c); } }
   }
 
-  /* ---------- 로그인 화면 ---------- */
-  function loginScreen(msg) {
-    return new Promise(function (resolve) {
-      var box = document.createElement("div");
-      box.className = "login-bg";
-      box.innerHTML = '<form class="login" autocomplete="on">' +
-        '<b>윌앤비전 급여·노무</b><span class="muted">팀 공용 저장소(Supabase)에 로그인하세요.</span>' +
-        '<label class="f">이메일<input class="i" type="email" name="email" autocomplete="username" required></label>' +
-        '<label class="f">비밀번호<input class="i" type="password" name="pw" autocomplete="current-password" required></label>' +
-        '<div class="login-msg" role="alert">' + esc(msg || "") + '</div>' +
-        '<button class="btn pri" type="submit">로그인</button></form>';
-      document.body.appendChild(box);
-      var f = box.querySelector("form"), m = box.querySelector(".login-msg"), b = box.querySelector("button");
-      f.email.focus();
-      f.addEventListener("submit", async function (e) {
-        e.preventDefault(); b.disabled = true; m.textContent = "";
-        var r = await sb.auth.signInWithPassword({ email: f.email.value.trim(), password: f.pw.value });
-        b.disabled = false;
-        if (r.error) { m.textContent = "로그인하지 못했습니다. 이메일과 비밀번호를 확인하세요."; return; }
-        box.remove(); resolve(r.data.user);
-      });
-    });
-  }
-
   window.SupaDB = {
     enabled: enabled,
-    // 로그인까지 마치면 사용자 정보를 돌려줌
     connect: async function () {
       try { await loadLib(); }
       catch (e) {
-        var d = document.createElement("div"); d.className = "login-bg";
-        d.innerHTML = '<div class="login"><b>연결하지 못했습니다</b><span class="login-msg">' + esc(e.message) + '</span><button class="btn pri" onclick="location.reload()">다시 시도</button></div>';
+        var d = document.createElement("div"); d.className = "conn-fail";
+        d.innerHTML = '<div><b>연결하지 못했습니다</b><span>' + esc(e.message) + '</span><button class="btn pri" onclick="location.reload()">다시 시도</button></div>';
         document.body.appendChild(d); throw e;
       }
-      sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey, { auth: { persistSession: true } });
-      var s = await sb.auth.getSession();
-      me = s.data && s.data.session ? s.data.session.user : await loginScreen();
-      // 다른 탭에서 로그아웃하거나 세션이 끝나면 다시 로그인
-      sb.auth.onAuthStateChange(function (ev) { if (ev === "SIGNED_OUT") location.reload(); });
-      return me;
+      sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey, { auth: { persistSession: false } });
     },
-    user: function () { return me; },
-    signOut: function () { return sb.auth.signOut().then(function () { location.reload(); }); },
     collection: function (c) {
       return {
         onSnapshot: function (f) {

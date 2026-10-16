@@ -1,10 +1,14 @@
 /*
- * Supabase 연결 설정
- * - 두 값을 비워 두면 지금처럼 이 브라우저(localStorage)에만 저장합니다.
- * - Supabase 대시보드 → Project Settings → API 에서 복사해 넣으세요.
- *   anon(public) 키는 공개돼도 되는 키입니다. service_role 키는 절대 넣지 마세요.
+ * Supabase 연결 설정 (기본값: 비어 있음 → 이 브라우저에만 저장)
+ *
+ * ⚠️ 이 파일에 실제 주소·키를 넣지 마세요. GitHub 저장소가 공개라서 누구나 보게 되고,
+ *    로그인 없이 쓰는 구조라 키만 있으면 급여 데이터를 읽고 지울 수 있습니다.
+ *
+ * 실제 값은 같은 폴더에 config.local.js 파일을 만들어 넣습니다. (.gitignore 에 있어 GitHub 에 올라가지 않음)
+ *   window.WV_CONFIG = {
+ *     supabaseUrl: "https://abcdefgh.supabase.co",
+ *     supabaseAnonKey: "eyJhbGciOi..."
+ *   };
+ * 팀원에게는 config.local.js 파일을 메신저 등으로 따로 전달하세요.
  */
-window.WV_CONFIG = {
-  supabaseUrl: "",      // 예: "https://abcdefgh.supabase.co"
-  supabaseAnonKey: ""   // 예: "eyJhbGciOi..."
-};
+window.WV_CONFIG = window.WV_CONFIG || { supabaseUrl: "", supabaseAnonKey: "" };
