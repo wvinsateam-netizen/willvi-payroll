@@ -49,10 +49,11 @@ const siteName=id=>{const s=S.sites.find(x=>x.id===id);return s?(s.f[NAME]||"(�
 const sitesSorted=()=>S.sites.slice().sort((a,b)=>(a.order??999)-(b.order??999));
 function toast(m){const t=document.createElement("div");t.className="toast";t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),2200)}
 function err(e){console.error(e);if(e&&e.code==="invalid_argument"){readOnly=true;toast("이 화면에서는 저장 권한이 없습니다. 보기 전용으로 전환합니다.");render();return}
+  if(e&&e.code==="permission_denied"){toast("저장 권한이 없습니다. 다시 로그인하거나 관리자에게 문의하세요.");return}
   if(e&&e.code==="quota_exceeded"){toast("저장 공간이 가득 찼습니다. 오래된 기록을 삭제한 뒤 다시 시도하세요.");return}
   toast("저장하지 못했습니다. 잠시 후 다시 시도하세요.")}
 function hl(text,q){const t=esc(text);if(!q)return t;const i=t.toLowerCase().indexOf(esc(q).toLowerCase());if(i<0)return t;const n=esc(q).length;return t.slice(0,i)+"<mark>"+t.slice(i,i+n)+"</mark>"+t.slice(i+n)}
-function armDelete(btn,fn){if(btn.classList.contains("arm")){fn();return}btn.classList.add("arm");const o=btn.textContent;btn.textContent="한 번 더 눌러 삭제";setTimeout(()=>{btn.classList.remove("arm");btn.textContent=o},3000)}
+function armDelete(btn,fn,msg){if(btn.classList.contains("arm")){fn();return}btn.classList.add("arm");const o=btn.textContent;btn.textContent=msg||"한 번 더 눌러 삭제";setTimeout(()=>{btn.classList.remove("arm");btn.textContent=o},3000)}
 function siteOptions(sel,withAll,allLabel){const v=sel.value;sel.innerHTML=(withAll?`<option value="">${allLabel||"전체 사업장"}</option>`:`<option value="">사업장 선택</option>`)+sitesSorted().map(s=>`<option value="${esc(s.id)}">${esc(s.f[NAME]||"")}${s.f["사업장 코드"]?" · "+esc(s.f["사업장 코드"]):""}</option>`).join("");if([...sel.options].some(o=>o.value===v))sel.value=v}
 async function fillNames(){if(!user||!user.profiles)return;const ids=[...new Set($$("[data-uid]").map(e=>e.dataset.uid).filter(Boolean))];if(!ids.length)return;
   try{const ps=await user.profiles(ids);ids.forEach(id=>{names[id]=(ps&&ps[id]&&ps[id].name)||"";});}catch(e){}
@@ -355,21 +356,37 @@ function drawMatrix(){const ids=sitesSorted().map(s=>s.id).filter(id=>S.wages[id
     return `<tr style="cursor:pointer" data-w="${esc(id)}"><td><b>${esc(siteName(id))}</b></td>${items.map(n=>`<td>${m[n]?(m[n].inc?'<span class="dot-y">●</span>':'<span class="muted">○</span>'):""}</td>`).join("")}<td class="mono">${wageSum(w.items)?won(wageSum(w.items)/(+w.hours||209)):"—"}</td></tr>`}).join("")}</tbody></table>`;
   $$("#wMatrix [data-w]").forEach(tr=>tr.onclick=()=>{if(S.wDirty){toast("저장하지 않은 변경이 있습니다. 먼저 저장하세요.");return}S.wSite=tr.dataset.w;S.wDraft=null;refWages();window.scrollTo(0,0)})}
 
-/* ---------- 데이터 연결 (로컬 저장소: js/store.js) ---------- */
+/* ---------- 데이터 연결 ----------
+   js/config.js 에 Supabase 주소·키가 있으면 Supabase(js/store-supabase.js), 없으면 이 브라우저(js/store.js) */
 window.WV={go,close:closeDrawer};
-db=window.LocalDB;
+const supa=!!(window.SupaDB&&window.SupaDB.enabled);
 dl={save:async({filename,data})=>{const a=document.createElement("a");a.href=URL.createObjectURL(data);a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1500)}};
-render();
+window.WV_onStoreError=e=>toast("Supabase에서 불러오지 못했습니다: "+(e.message||"연결을 확인하세요"));
 const sub=(col,fn)=>db.collection(col).onSnapshot(snap=>{fn(snap.docs.map(d=>({id:d.id,...d.data()})));S.loaded[col]=true;refresh()});
-sub("sites",a=>S.sites=a.map(x=>({...x,f:x.f||{}})));
-sub("issues",a=>S.issues=a);
-sub("notes",a=>S.notes=a);
-sub("wages",a=>{const m={};a.forEach(x=>m[x.id]=x);S.wages=m});
-sub("wagenotes",a=>{const m={};a.forEach(x=>m[x.id]=x);S.wagenotes=m});
+async function boot(){
+  if(supa){try{user=await window.SupaDB.connect()}catch(e){console.error(e);return}
+    db=window.SupaDB;uid=user.id;user.profiles=async ids=>{const m={};ids.forEach(id=>{if(id===uid)m[id]={name:user.email}});return m};
+    $("#conn").innerHTML=`Supabase 공용 저장소<br><span class="mono">${esc(user.email||"")}</span>`;
+    $("#bkReset").textContent="이 브라우저 데이터 올리기";$("#bkReset").classList.remove("danger");
+    $("#bkReset").insertAdjacentHTML("afterend",`<button class="btn sm" id="bkLogout">로그아웃</button>`);
+    $("#bkLogout").onclick=()=>window.SupaDB.signOut()}
+  else db=window.LocalDB;
+  render();
+  sub("sites",a=>S.sites=a.map(x=>({...x,f:x.f||{}})));
+  sub("issues",a=>S.issues=a);
+  sub("notes",a=>S.notes=a);
+  sub("wages",a=>{const m={};a.forEach(x=>m[x.id]=x);S.wages=m});
+  sub("wagenotes",a=>{const m={};a.forEach(x=>m[x.id]=x);S.wagenotes=m});
+}
 /* 백업 */
 $("#bkExport").onclick=()=>dl.save({filename:`급여기초_전체_${today()}.csv`,data:new Blob([sitesCsv(sitesSorted())],{type:"text/csv;charset=utf-8"})});
 $("#bkImport").onclick=()=>$("#bkFile").click();
-$("#bkFile").onchange=async e=>{const f=e.target.files[0];if(!f)return;try{db.importJSON(await f.text());toast("백업을 불러왔습니다")}catch(x){toast("불러오지 못했습니다: "+(x.message||"파일 형식을 확인하세요"))}e.target.value=""};
-$("#bkReset").onclick=e=>armDelete(e.currentTarget,()=>{db.reset();toast("엑셀 원본 상태로 초기화했습니다")});
+$("#bkFile").onchange=async e=>{const f=e.target.files[0];if(!f)return;try{await db.importJSON(await f.text());toast("백업을 불러왔습니다")}catch(x){toast("불러오지 못했습니다: "+(x.message||"파일 형식을 확인하세요"))}e.target.value=""};
+// Supabase 모드: 이 브라우저(localStorage)의 기존 데이터를 공용 저장소로 올림 (같은 id 는 덮어씀)
+$("#bkReset").onclick=e=>armDelete(e.currentTarget,async()=>{
+  if(!supa){db.reset();toast("엑셀 원본 상태로 초기화했습니다");return}
+  try{const n=await window.SupaDB.uploadLocal();toast(`이 브라우저 데이터 ${n}건을 올렸습니다`)}catch(x){err(x)}},supa?"한 번 더 눌러 올리기":"");
+render();
+boot();
 
 })();
