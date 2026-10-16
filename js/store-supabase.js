@@ -3,7 +3,8 @@
  * - js/config.js 에 주소와 키를 넣으면 이 파일이 쓰입니다. 비어 있으면 js/store.js(로컬)를 씁니다.
  * - app.js 가 쓰는 인터페이스(collection/doc, onSnapshot, set/update/delete)는 store.js 와 같습니다.
  * - 테이블 구조는 supabase/schema.sql 참고: (id, data jsonb, updated_at)
- * - 로그인 없이 씁니다. 주소·키를 아는 사람은 누구나 읽고 쓸 수 있으니 키를 공개 장소에 올리지 마세요.
+ * - 로그인: 팀 공용 계정 1개(이메일·비밀번호). 계정은 Supabase 대시보드 → Authentication → Users 에서 만듭니다.
+ *   로그인하지 않으면 데이터를 읽거나 쓸 수 없습니다(supabase/schema.sql 의 권한 설정).
  */
 (function () {
   "use strict";
@@ -106,8 +107,33 @@
     for (var i = 0; i < COLS.length; i++) { var c = COLS[i]; if (started[c]) { cache[c] = await fetchAll(c); emit(c); } }
   }
 
+  /* ---------- 로그인 화면 ---------- */
+  function loginScreen() {
+    return new Promise(function (resolve) {
+      var box = document.createElement("div");
+      box.className = "conn-fail";
+      box.innerHTML = '<form autocomplete="on">' +
+        '<b>윌앤비전 급여·노무</b><span class="muted">팀 공용 계정으로 로그인하세요.</span>' +
+        '<label class="f">이메일<input class="i" type="email" name="email" autocomplete="username" required></label>' +
+        '<label class="f">비밀번호<input class="i" type="password" name="pw" autocomplete="current-password" required></label>' +
+        '<span class="msg" role="alert"></span>' +
+        '<button class="btn pri" type="submit">로그인</button></form>';
+      document.body.appendChild(box);
+      var f = box.querySelector("form"), m = box.querySelector(".msg"), b = box.querySelector("button");
+      f.email.focus();
+      f.addEventListener("submit", async function (e) {
+        e.preventDefault(); b.disabled = true; m.textContent = "";
+        var r = await sb.auth.signInWithPassword({ email: f.email.value.trim(), password: f.pw.value });
+        b.disabled = false;
+        if (r.error) { m.textContent = "로그인하지 못했습니다. 이메일과 비밀번호를 확인하세요."; return; }
+        box.remove(); resolve(r.data.user);
+      });
+    });
+  }
+
   window.SupaDB = {
     enabled: enabled,
+    // 로그인까지 마치면 사용자 정보를 돌려줌
     connect: async function () {
       try { await loadLib(); }
       catch (e) {
@@ -115,8 +141,14 @@
         d.innerHTML = '<div><b>연결하지 못했습니다</b><span>' + esc(e.message) + '</span><button class="btn pri" onclick="location.reload()">다시 시도</button></div>';
         document.body.appendChild(d); throw e;
       }
-      sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey, { auth: { persistSession: false } });
+      sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey, { auth: { persistSession: true } });
+      var s = await sb.auth.getSession();
+      var me = s.data && s.data.session ? s.data.session.user : await loginScreen();
+      // 로그아웃하거나 세션이 끝나면 로그인 화면으로
+      sb.auth.onAuthStateChange(function (ev) { if (ev === "SIGNED_OUT") location.reload(); });
+      return me;
     },
+    signOut: function () { return sb.auth.signOut().then(function () { location.reload(); }); },
     collection: function (c) {
       return {
         onSnapshot: function (f) {

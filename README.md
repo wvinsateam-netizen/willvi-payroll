@@ -20,10 +20,12 @@ willvi-payroll/
 ├─ js/app.js               화면 동작 (홈, 급여기초, 노무 문제, 급여 특이사항, 통상임금)
 ├─ js/config.js            Supabase 설정 안내 (실제 값은 config.local.js, GitHub에 안 올라감)
 ├─ js/store.js             저장 기능 (브라우저 localStorage)
-├─ js/store-supabase.js    저장 기능 (Supabase 공용 저장소)
+├─ js/store-supabase.js    저장 기능 (Supabase 공용 저장소, 공용 계정 로그인)
 ├─ supabase/schema.sql     Supabase 테이블 만들기 SQL
 ├─ data/seed-sites.js      엑셀에서 가져온 사업장 정보 (처음 열 때 사용)
 ├─ tools/excel_to_seed.py  엑셀 → seed-sites.js 변환 스크립트
+├─ tools/vercel-build.mjs  Vercel 배포용 빌드 (환경 변수 → Supabase 설정)
+├─ vercel.json             Vercel 설정
 └─ .vscode/                VS Code 권장 확장·설정
 ```
 
@@ -41,29 +43,38 @@ willvi-payroll/
 
 ## Supabase 연동 (팀 공용 저장소)
 
-Supabase 주소와 키를 `js/config.local.js`에 넣으면 브라우저 대신 Supabase에 저장합니다.
-로그인 없이 쓰며, 다른 사람이 고친 내용은 바로 화면에 반영됩니다.
-
-> ⚠️ 로그인이 없어서 **주소와 키만 있으면 누구나 데이터를 읽고 지울 수 있습니다.**
-> 키는 `js/config.js`가 아니라 `js/config.local.js`에 넣으세요. 이 파일은 GitHub에 올라가지 않습니다.
+Supabase에 저장하고, 팀 공용 계정 1개로 로그인해서 씁니다. 다른 사람이 고친 내용은 바로 화면에 반영됩니다.
 
 1. [supabase.com](https://supabase.com)에서 프로젝트를 만듭니다. Region은 Seoul을 권장합니다.
 2. **SQL Editor**에 `supabase/schema.sql` 내용을 붙여 넣고 **Run** 합니다.
-3. **Project Settings → API Keys**(또는 상단 **Connect**)에서 Project URL과 `anon` `public` 키를 복사합니다.
-   - `service_role`(secret) 키는 절대 쓰지 마세요.
-4. `js` 폴더에 `config.local.js` 파일을 새로 만들고 아래처럼 넣습니다.
-   ```js
-   window.WV_CONFIG = {
-     supabaseUrl: "https://abcdefgh.supabase.co",
-     supabaseAnonKey: "eyJhbGciOi..."
-   };
-   ```
-5. **기존 데이터 옮기기**: 기존에 쓰던 PC·브라우저·열기 방식 그대로 페이지를 열고, 왼쪽 아래 **이 브라우저 데이터 올리기**를 두 번 누릅니다.
-   - 같은 항목은 덮어씁니다. 한 사람이 한 번만 하세요.
-6. 팀원에게는 `config.local.js` 파일을 메신저 등으로 따로 전달해, 각자 `js` 폴더에 넣게 합니다.
+3. **Authentication → Users → Add user → Create new user**로 팀 공용 계정을 하나 만듭니다. **Auto Confirm User**를 체크하세요.
+4. ⚠️ **Authentication → Sign In / Providers**에서 **Allow new users to sign up**을 끕니다. 켜져 있으면 누구나 가입해서 데이터를 볼 수 있습니다.
+5. **Project Settings → API Keys**에서 Project URL과 `anon` `public` 키를 복사합니다. `service_role`(secret) 키는 절대 쓰지 마세요.
+6. 설정 넣기
+   - **Vercel로 배포할 때**: 아래 "Vercel 배포"를 보세요.
+   - **PC에서 파일로 열 때**: `js/config.local.js` 파일을 만들고 아래처럼 넣습니다. 이 파일은 GitHub에 올라가지 않습니다.
+     ```js
+     window.WV_CONFIG = {
+       supabaseUrl: "https://abcdefgh.supabase.co",
+       supabaseAnonKey: "eyJhbGciOi..."
+     };
+     ```
+7. **기존 데이터 옮기기**: 기존에 쓰던 PC·브라우저·열기 방식 그대로 페이지를 열고 로그인한 뒤, 왼쪽 아래 **이 브라우저 데이터 올리기**를 두 번 누릅니다. 같은 항목은 덮어쓰니 한 사람이 한 번만 하세요.
 
 Supabase 모드에서는 "엑셀 원본으로 초기화" 버튼이 없습니다(공용 데이터를 한 번에 지우지 않도록).
 **백업 불러오기**는 백업 파일의 내용을 Supabase에 올리며, 백업에 없는 항목은 지우지 않습니다.
+
+## Vercel 배포
+
+1. [vercel.com](https://vercel.com)에서 **Add New → Project**로 이 GitHub 저장소를 가져옵니다(Import).
+2. **Environment Variables**에 두 개를 넣습니다.
+   - `SUPABASE_URL` = Project URL
+   - `SUPABASE_ANON_KEY` = anon public 키
+3. **Deploy**를 누릅니다. 빌드 설정은 `vercel.json`에 있어서 따로 고칠 것이 없습니다.
+4. 도메인은 Vercel 프로젝트 → **Settings → Domains**에서 연결합니다.
+
+- 두 환경 변수가 없으면 배포가 실패합니다(실수로 브라우저 저장 방식으로 올라가지 않도록).
+- `data/seed-sites.js`(엑셀 원본: 담당자 이름·연락처)는 배포에 포함하지 않습니다.
 
 ## 엑셀이 바뀌었을 때
 

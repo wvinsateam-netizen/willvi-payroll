@@ -2,3 +2,4 @@
 *백업*.json
 __pycache__/
 js/config.local.js
+dist/

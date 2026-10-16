@@ -14,13 +14,13 @@ begin
       updated_at timestamptz not null default now()
     )', t);
 
-    -- 로그인 없이 사용: 주소·anon 키를 가진 사람은 누구나 읽고 쓸 수 있음
-    -- (그래서 키는 GitHub 등 공개 장소에 올리면 안 됨. js/config.local.js 참고)
+    -- 로그인한 사용자(팀 공용 계정)만 읽고 쓸 수 있음
+    -- ⚠️ Authentication 설정에서 "Allow new users to sign up" 을 꼭 끄세요. 켜져 있으면 누구나 가입해 접근할 수 있습니다.
     execute format('alter table public.%I enable row level security', t);
     execute format('drop policy if exists "로그인 사용자 전체 권한" on public.%I', t);
     execute format('drop policy if exists "앱 전체 권한" on public.%I', t);
-    execute format('create policy "앱 전체 권한" on public.%I
-      for all to anon, authenticated using (true) with check (true)', t);
+    execute format('create policy "로그인 사용자 전체 권한" on public.%I
+      for all to authenticated using (true) with check (true)', t);
 
     -- 다른 사람이 고친 내용이 바로 화면에 반영되도록 실시간 알림 켜기
     if not exists (select 1 from pg_publication_tables
