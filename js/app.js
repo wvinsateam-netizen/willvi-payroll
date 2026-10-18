@@ -61,7 +61,7 @@ function err(e){console.error(e);if(e&&e.code==="invalid_argument"){readOnly=tru
   toast("저장하지 못했습니다. 잠시 후 다시 시도하세요.")}
 function hl(text,q){const t=esc(text);if(!q)return t;const i=t.toLowerCase().indexOf(esc(q).toLowerCase());if(i<0)return t;const n=esc(q).length;return t.slice(0,i)+"<mark>"+t.slice(i,i+n)+"</mark>"+t.slice(i+n)}
 function armDelete(btn,fn,msg){if(btn.classList.contains("arm")){fn();return}btn.classList.add("arm");const o=btn.textContent;btn.textContent=msg||"한 번 더 눌러 삭제";setTimeout(()=>{btn.classList.remove("arm");btn.textContent=o},3000)}
-function siteOptions(sel,withAll,allLabel){const v=sel.value;sel.innerHTML=(withAll?`<option value="">${allLabel||"전체 사업장"}</option>`:`<option value="">사업장 선택</option>`)+sitesSorted().map(s=>`<option value="${esc(s.id)}">${esc(s.f[NAME]||"")}${s.f["사업장 코드"]?" · "+esc(s.f["사업장 코드"]):""}</option>`).join("");if([...sel.options].some(o=>o.value===v))sel.value=v}
+function siteOptions(sel,withAll,allLabel){const v=sel.value;sel.innerHTML=(withAll?`<option value="">${allLabel||"전체 사업장"}</option>`:`<option value="">사업장 선택</option>`)+sitesSorted().map(s=>`<option value="${esc(s.id)}">${esc(s.f[NAME]||"")}</option>`).join("");if([...sel.options].some(o=>o.value===v))sel.value=v}
 async function fillNames(){if(!user||!user.profiles)return;const ids=[...new Set($$("[data-uid]").map(e=>e.dataset.uid).filter(Boolean))];if(!ids.length)return;
   try{const ps=await user.profiles(ids);ids.forEach(id=>{names[id]=(ps&&ps[id]&&ps[id].name)||"";});}catch(e){}
   $$("[data-uid]").forEach(e=>{e.textContent=names[e.dataset.uid]||"작성자"})}
