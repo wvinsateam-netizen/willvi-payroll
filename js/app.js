@@ -37,15 +37,11 @@ const NOTE_TYPES=["수당","공제","소급·정산","입·퇴사","휴직·복�
 const DATA_FIXES=[
   ["s03","경영지원본부 인사담당자","강미리","주예린"],["s04","경영지원본부 인사담당자","강미리","주예린"],
   ["s07","경영지원본부 인사담당자","강미리","주예린"],["s08","경영지원본부 인사담당자","강미리","주예린"]];
-const DEFAULT_WAGE=[
-  ["기본급",true,"고정","매월"],["직책수당",true,"고정","매월"],["자격수당",true,"고정","매월"],["근속수당",true,"고정","매월"],
-  ["식대",false,"고정","매월"],["교통비",false,"실비","매월"],["가족수당",false,"고정","매월"],["정기상여금",true,"고정","분기"],
-  ["성과급",false,"변동","연"],["연장·야간·휴일근로수당",false,"변동","매월"]];
 
 /* ---------- 상태 ---------- */
-const S={view:"home",sites:[],issues:[],notes:[],wages:{},wagenotes:{},loaded:{sites:false,issues:false,notes:false,wages:false,wagenotes:false},
+const S={view:"home",sites:[],issues:[],notes:[],wagenotes:{},loaded:{sites:false,issues:false,notes:false,wagenotes:false},
   siteF:{q:"",group:"기본",sort:null,dir:1},siteSel:{},issueF:{status:"",site:"",type:"",risk:""},noteF:{month:"",site:""},
-  wSite:"",wDraft:null,wDirty:false,wnSite:"",wnDraft:null,wnDirty:false,drawer:null,dTab:"info",dEdit:false};
+  wnSite:"",wnDraft:null,wnDirty:false,drawer:null,dTab:"info",dEdit:false};
 let db=null,user=null,uid=null,dl=null,readOnly=false;
 const names={};
 try{const v=localStorage.getItem("wv-view");if(v)S.view=v;const g=localStorage.getItem("wv-group");if(g&&GROUPS[g])S.siteF.group=g;}catch(e){}
@@ -75,30 +71,29 @@ const who=id=>id?`<span data-uid="${esc(id)}">${esc(names[id]||"작성자")}</sp
 $("#nav").addEventListener("click",e=>{const b=e.target.closest("button[data-v]");if(!b)return;go(b.dataset.v)});
 function go(v,opt){S.view=v;try{localStorage.setItem("wv-view",v)}catch(e){}if(opt)Object.assign(S,opt);render();window.scrollTo(0,0)}
 function counts(){$("#c-sites").textContent=S.sites.length;$("#c-issues").textContent=S.issues.filter(i=>i.status!=="완료").length;
-  $("#c-notes").textContent=S.notes.filter(n=>n.month===thisMonth()).length;$("#c-wages").textContent=Object.keys(S.wages).length;
+  $("#c-notes").textContent=S.notes.filter(n=>n.month===thisMonth()).length;
   $$("#nav button").forEach(b=>b.setAttribute("aria-current",b.dataset.v===S.view?"page":"false"))}
 
 /* ---------- 렌더 ---------- */
 function render(){counts();const m=$("#main");
   const banner=readOnly?`<div class="banner">보기 전용입니다.</div>`:"";
-  m.innerHTML=banner+({home:vHome,sites:vSites,issues:vIssues,notes:vNotes,wages:vWages}[S.view]||vHome)();
-  ({home:()=>{},sites:bindSites,issues:bindIssues,notes:bindNotes,wages:bindWages}[S.view]||(()=>{}))();
+  m.innerHTML=banner+({home:vHome,sites:vSites,issues:vIssues,notes:vNotes}[S.view]||vHome)();
+  ({home:()=>{},sites:bindSites,issues:bindIssues,notes:bindNotes}[S.view]||(()=>{}))();
   fillNames();renderDrawer()}
-function refresh(){counts();({home:()=>render(),sites:refSites,issues:refIssues,notes:refNotes,wages:refWages}[S.view]||render)();if(S.drawer)renderDrawer();fillNames()}
+function refresh(){counts();({home:()=>render(),sites:refSites,issues:refIssues,notes:refNotes}[S.view]||render)();if(S.drawer)renderDrawer();fillNames()}
 
 /* ===== 홈 ===== */
-function vHome(){const n=S.sites.length,open=S.issues.filter(i=>i.status!=="완료"),mon=S.notes.filter(x=>x.month===thisMonth()),wc=Object.keys(S.wages).length;
+function vHome(){const n=S.sites.length,open=S.issues.filter(i=>i.status!=="완료"),mon=S.notes.filter(x=>x.month===thisMonth());
   const by=(k)=>{const m={};S.sites.forEach(s=>{const v=(s.f[k]||"미기재").trim();m[v]=(m[v]||0)+1});return Object.entries(m).sort((a,b)=>b[1]-a[1])};
   const bars=(arr,suf="",colorOf)=>{const mx=Math.max(1,...arr.map(a=>a[1]));return `<div class="bars">${arr.map(([k,c])=>`<div class="r"><span title="${esc(k)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(k)}${suf}</span><span class="t"><i style="width:${c/mx*100}%${colorOf?`;background:${colorOf(k)}`:""}"></i></span><span class="c">${c}</span></div>`).join("")}</div>`};
   const riskColor=r=>r==="높음"?"var(--bad)":r==="보통"?"var(--warn)":"var(--ok)";
   const byRisk=RISKS.map(r=>[r,open.filter(i=>i.risk===r).length]);
   const recent=S.issues.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||"")).slice(0,5);
-  return `<div class="page-h"><div><h1>급여·노무 관리 홈</h1><p>사업장별 급여기초 정보, 노무 문제, 급여 특이사항, 통상임금 포함항목을 한곳에서 관리합니다.</p></div></div>
+  return `<div class="page-h"><div><h1>급여·노무 관리 홈</h1><p>사업장별 급여기초 정보, 노무 문제, 급여 특이사항을 한곳에서 관리합니다.</p></div></div>
   <div class="grid g-stats" style="margin-bottom:16px">
     <button class="stat" onclick="WV.go('sites')"><span class="l">관리 사업장</span><span class="v">${n}<small>곳</small></span><span class="n">급여기초 등록 기준</span></button>
     <button class="stat" onclick="WV.go('issues')"><span class="l">미해결 노무 문제</span><span class="v" style="color:${open.length?"var(--bad)":"inherit"}">${open.length}<small>건</small></span><span class="n">${open.filter(i=>i.risk==="높음").length?`<b style="color:var(--bad)">위험 높음 ${open.filter(i=>i.risk==="높음").length}</b> · `:""}접수 ${open.filter(i=>i.status==="접수").length} · 진행중 ${open.filter(i=>i.status==="진행중").length}</span></button>
     <button class="stat" onclick="WV.go('notes')"><span class="l">${thisMonth().replace("-","년 ")}월 급여 특이사항</span><span class="v">${mon.length}<small>건</small></span><span class="n">전체 ${S.notes.length}건</span></button>
-    <button class="stat" onclick="WV.go('wages')"><span class="l">통상임금 항목 설정</span><span class="v">${wc}<small>/ ${n}</small></span><span class="n">${n-wc>0?`미설정 ${n-wc}곳`:"모든 사업장 설정 완료"}</span></button>
   </div>
   <div class="grid g-2">
     <div class="card"><div class="hd"><h2>최근 노무 문제</h2><button class="btn sm" style="margin-left:auto" onclick="WV.go('issues')">전체 보기</button></div>
@@ -112,7 +107,7 @@ function vHome(){const n=S.sites.length,open=S.issues.filter(i=>i.status!=="완�
   </div>`}
 
 /* ===== 급여기초 ===== */
-function vSites(){return `<div class="page-h"><div><h1>급여기초</h1><p>사업장별 급여·계약·담당자 정보입니다. 조건을 조합해 필터링하고, 행을 누르면 상세 정보와 해당 사업장의 노무 문제·특이사항·통상임금을 함께 볼 수 있습니다.</p></div>
+function vSites(){return `<div class="page-h"><div><h1>급여기초</h1><p>사업장별 급여·계약·담당자 정보입니다. 조건을 조합해 필터링하고, 행을 누르면 상세 정보와 해당 사업장의 노무 문제·특이사항을 함께 볼 수 있습니다.</p></div>
   <div class="act"><button class="btn" id="csv" hidden>필터 결과 CSV 저장</button><button class="btn pri" id="addSite" ${!db||readOnly?"disabled":""}>사업장 추가</button></div></div>
   <div class="card">
     <div class="bd" style="border-bottom:1px solid var(--line)"><div class="filters">
@@ -158,8 +153,8 @@ function closeDrawer(){S.drawer=null;S.dEdit=false;renderDrawer()}
 function renderDrawer(){const root=$("#drawer-root");if(!S.drawer){root.innerHTML="";return}
   const isNew=S.drawer==="__new";const s=isNew?{id:"__new",f:{}}:S.sites.find(x=>x.id===S.drawer);if(!s){root.innerHTML="";S.drawer=null;return}
   if(S.dEdit&&root.querySelector("#siteForm"))return; // 편집 중엔 입력값 보존
-  const iss=S.issues.filter(i=>i.siteId===s.id),nts=S.notes.filter(n=>n.siteId===s.id),w=S.wages[s.id];
-  const tabs=[["info","기본 정보"],["issues",`노무 문제 ${iss.length}`],["notes",`급여 특이사항 ${nts.length}`],["wages","통상임금"]];
+  const iss=S.issues.filter(i=>i.siteId===s.id),nts=S.notes.filter(n=>n.siteId===s.id);
+  const tabs=[["info","기본 정보"],["issues",`노무 문제 ${iss.length}`],["notes",`급여 특이사항 ${nts.length}`]];
   let body="";
   if(S.dEdit){body=`<form id="siteForm" class="form">${COLS.map((k,i)=>{if(k==="계약유지상태")return `<div class="f"><span>${esc(lbl(k))}</span><span class="cbox">${CONTRACT_STATES.map(v=>`<label><input type="checkbox" data-k="${esc(k)}" value="${esc(v)}" ${s.f[k]===v?"checked":""}>${esc(v)}</label>`).join("")}</span></div>`;
     if(MULTI[k]){const on=splitMulti(s.f[k]);return `<div class="f"><span>${esc(lbl(k))}</span><span class="cbox">${MULTI[k].map(v=>`<label><input type="checkbox" data-k="${esc(k)}" value="${esc(v)}" ${on.includes(v)?"checked":""}>${esc(v)}</label>`).join("")}</span></div>`}
@@ -174,10 +169,6 @@ function renderDrawer(){const root=$("#drawer-root");if(!S.drawer){root.innerHTM
   else if(S.dTab==="notes"){const base=[["급여관련특이사항",s.f["급여관련특이사항"]],["특이사항",s.f["특이사항"]],["기타",s.f["기타"]]].filter(x=>x[1]);
     body=(base.length?`<section><h3 class="sec-t">급여기초 자료의 특이사항</h3><dl class="kv">${base.map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl></section>`:"")+
     `<div style="display:flex;justify-content:flex-end"><button class="btn sm pri" onclick="WV.go('notes',{notePre:'${esc(s.id)}'});WV.close()">이 사업장 특이사항 입력</button></div>`+(nts.length?`<div class="card list">${nts.sort((a,b)=>(b.month||"").localeCompare(a.month||"")).map(noteRow).join("")}</div>`:`<div class="empty"><b>월별 급여 특이사항이 없습니다</b></div>`)}
-  else{body=w&&w.items&&w.items.length?`<table class="wtbl"><thead><tr><th>항목</th><th>통상임금</th><th>성격</th><th>주기</th><th style="text-align:right">월 환산액</th></tr></thead><tbody>${w.items.map(it=>`<tr><td>${esc(it.name)}</td><td>${it.inc?'<span class="pill p-acc">포함</span>':'<span class="pill p-neutral">제외</span>'}</td><td>${esc(it.kind)}</td><td>${esc(it.cycle)}</td><td class="mono" style="text-align:right">${it.amount?won(it.amount):"—"}</td></tr>`).join("")}</tbody></table>
-    <div class="note">통상임금 월 합계 <b class="mono">${won(wageSum(w.items))}원</b> · 월 소정근로 ${esc(w.hours||209)}시간 기준 통상시급 <b class="mono">${won(wageSum(w.items)/(+w.hours||209))}원</b></div>
-    <div><button class="btn sm" onclick="WV.go('wages',{wSite:'${esc(s.id)}',wDraft:null,wDirty:false});WV.close()">통상임금 항목 수정</button></div>`
-    :`<div class="empty"><b>통상임금 포함항목이 설정되지 않았습니다</b><button class="btn sm pri" style="margin-top:10px" onclick="WV.go('wages',{wSite:'${esc(s.id)}',wDraft:null,wDirty:false});WV.close()">지금 설정하기</button></div>`}
   root.innerHTML=`<div class="drawer-bg" id="dBg"></div><div class="drawer" role="dialog" aria-modal="true" aria-label="사업장 상세">
     <div class="dh"><div style="min-width:0"><div class="tiny muted mono">${esc(s.f["사업장 코드"]?"코드 "+s.f["사업장 코드"]:"")} ${esc(s.f["소속부서"]||"")}</div><h2>${isNew?"새 사업장":esc(s.f[NAME]||"(이름 없음)")}</h2>
       <div class="chips" style="margin-top:6px">${s.f["파견/도급구분"]?`<span class="pill p-neutral">${esc(s.f["파견/도급구분"])}</span>`:""}${s.f["급여일"]?`<span class="pill p-neutral">급여일 ${esc(s.f["급여일"])}${/^\d+$/.test(s.f["급여일"])?"일":""}</span>`:""}${iss.filter(i=>i.status!=="완료").length?`<span class="pill p-open">미해결 노무 ${iss.filter(i=>i.status!=="완료").length}</span>`:""}</div></div>
@@ -317,59 +308,6 @@ function refNotes(){if(!$("#nlist"))return;siteOptions($("#nSite"),false);siteOp
   $("#nbase").innerHTML=base.length?base.map(({s,items})=>`<div class="item" style="cursor:pointer" data-open="${esc(s.id)}"><span class="bar"></span><div style="min-width:0"><div class="meta"><b style="color:var(--ink)">${esc(s.f[NAME])}</b><span class="mono">${esc(s.f["사업장 코드"]||"")}</span></div>${items.map(([k,v])=>`<p style="margin-top:4px"><span class="tiny muted">${esc(k)}</span><br>${esc(v)}</p>`).join("")}</div></div>`).join(""):`<div class="empty">급여기초 자료에 적힌 특이사항이 없습니다.</div>`;
   $$("#nbase [data-open]").forEach(el=>el.onclick=()=>openDrawer(el.dataset.open))}
 
-/* ===== 통상임금 ===== */
-const wageSum=items=>(items||[]).filter(i=>i.inc).reduce((a,i)=>a+(+i.amount||0),0);
-function vWages(){return `<div class="page-h"><div><h1>통상임금 포함항목</h1><p>사업장별로 임금 항목이 통상임금에 들어가는지 정리하고, 월 환산액을 넣으면 통상시급을 바로 계산합니다.</p></div></div>
-  <div class="grid">
-    <div class="card"><div class="toolbar"><label class="f" style="flex-direction:row;align-items:center;gap:8px;font-size:13px;color:var(--ink)">사업장<select class="i" id="wSite" style="width:auto;max-width:280px"></select></label>
-      <span class="tiny muted" id="wMeta"></span><span style="margin-left:auto;display:flex;gap:8px"><button class="btn sm" id="wCopy" hidden>다른 사업장에서 복사</button><button class="btn pri" id="wSave" ${!db||readOnly?"disabled":""}>저장</button></span></div>
-      <div id="wEditor"></div></div>
-    <div class="note"><b style="color:var(--ink)">판단 기준</b> · 통상임금은 소정근로의 대가로 정기적·일률적으로 지급되는 임금입니다. 2024년 12월 대법원 전원합의체 판결로 ‘고정성’ 요건이 빠져, 재직 조건이나 일정 근무일수 조건이 붙은 정기상여금도 통상임금에 들어갈 수 있습니다. 실비 변상(교통비·출장비 실비 등)과 성과에 따라 달라지는 성과급, 연장·야간·휴일근로수당은 일반적으로 제외됩니다. 최종 판단은 노무 자문을 거쳐 확정하세요.</div>
-    <div class="card"><div class="hd"><h2>사업장별 포함항목 한눈에 보기</h2><span class="sub">● 포함 · ○ 제외 · 빈칸 미설정</span></div><div class="tbl-wrap" id="wMatrix"></div></div>
-  </div>`}
-function bindWages(){const sel=$("#wSite");siteOptions(sel,false);if(!S.wSite&&S.sites.length)S.wSite=sitesSorted()[0].id;sel.value=S.wSite;
-  sel.onchange=e=>{if(S.wDirty&&!sel.dataset.ok){sel.dataset.ok="1";toast("저장하지 않은 변경이 있습니다. 다시 선택하면 변경을 버리고 이동합니다.");sel.value=S.wSite;return}delete sel.dataset.ok;S.wSite=e.target.value;S.wDraft=null;S.wDirty=false;refWages()};
-  $("#wSave").onclick=async()=>{if(!S.wSite||!S.wDraft)return;const items=S.wDraft.items.filter(i=>i.name.trim());
-    try{await db.doc("wages/"+S.wSite).set({items,hours:+S.wDraft.hours||209,updatedAt:new Date().toISOString(),by:uid||""});S.wDirty=false;toast("통상임금 항목을 저장했습니다")}catch(x){err(x)}};
-  refWages()}
-function refWages(){if(!$("#wEditor"))return;const sel=$("#wSite");siteOptions(sel,false);if(!S.wSite&&S.sites.length){S.wSite=sitesSorted()[0].id}sel.value=S.wSite;
-  const saved=S.wages[S.wSite];
-  if(!S.wDirty||!S.wDraft){S.wDraft=saved?{items:JSON.parse(JSON.stringify(saved.items||[])),hours:saved.hours||209}:{items:DEFAULT_WAGE.map(([name,inc,kind,cycle])=>({name,inc,kind,cycle,amount:"",memo:""})),hours:209}}
-  $("#wMeta").innerHTML=!S.wSite?"":saved?`마지막 저장 ${esc((saved.updatedAt||"").slice(0,10))}`:`<span class="pill p-prog">미설정</span> 기본 항목 틀을 불러왔습니다. 확인 후 저장하세요.`;
-  const cp=$("#wCopy");const others=Object.keys(S.wages).filter(k=>k!==S.wSite);cp.hidden=!others.length||readOnly||!db;
-  cp.onclick=()=>{const box=$("#wCopyBox");if(box){box.remove();return}const d=document.createElement("div");d.id="wCopyBox";d.className="toolbar";d.innerHTML=`<span class="tiny">복사할 사업장</span>${others.map(k=>`<button class="chip" data-cp="${esc(k)}">${esc(siteName(k))}</button>`).join("")}`;$("#wEditor").before(d);
-    d.onclick=e=>{const b=e.target.closest("[data-cp]");if(!b)return;const src=S.wages[b.dataset.cp];S.wDraft={items:JSON.parse(JSON.stringify(src.items)),hours:src.hours||209};S.wDirty=true;d.remove();drawWEditor();toast(siteName(b.dataset.cp)+" 항목을 불러왔습니다. 저장해야 반영됩니다.")}};
-  if(!S.wSite){$("#wEditor").innerHTML=`<div class="empty"><b>사업장을 먼저 등록하세요</b></div>`}else if(!S.wDirty||!$("#wEditor .wtbl"))drawWEditor();
-  drawMatrix()}
-function drawWEditor(){const D=S.wDraft,ro=readOnly||!db;
-  $("#wEditor").innerHTML=`<div class="tbl-wrap" style="max-height:none"><table class="wtbl"><thead><tr><th style="min-width:150px">임금 항목</th><th>통상임금 포함</th><th>성격</th><th>지급 주기</th><th style="min-width:120px">월 환산액(원)</th><th style="min-width:160px">비고·판단 근거</th><th></th></tr></thead><tbody>
-    ${D.items.map((it,i)=>`<tr data-i="${i}"><td><input class="i" id="wn${i}" data-f="name" value="${esc(it.name)}" ${ro?"disabled":""}></td>
-      <td><input type="checkbox" class="tog" id="wi${i}" data-f="inc" ${it.inc?"checked":""} ${ro?"disabled":""} aria-label="통상임금 포함"></td>
-      <td><select class="i" id="wk${i}" data-f="kind" ${ro?"disabled":""}>${["고정","변동","실비"].map(k=>`<option ${k===it.kind?"selected":""}>${k}</option>`).join("")}</select></td>
-      <td><select class="i" id="wc${i}" data-f="cycle" ${ro?"disabled":""}>${["매월","분기","반기","연","부정기"].map(k=>`<option ${k===it.cycle?"selected":""}>${k}</option>`).join("")}</select></td>
-      <td><input class="i mono" type="number" min="0" step="1" id="wa${i}" data-f="amount" value="${esc(it.amount)}" placeholder="0" style="text-align:right" ${ro?"disabled":""}></td>
-      <td><input class="i" id="wm${i}" data-f="memo" value="${esc(it.memo||"")}" ${ro?"disabled":""}></td>
-      <td>${ro?"":`<button class="btn sm danger" data-rm="${i}" aria-label="항목 삭제">삭제</button>`}</td></tr>`).join("")}
-  </tbody></table></div>
-  <div class="bd" style="display:flex;flex-direction:column;gap:14px;border-top:1px solid var(--line)">
-    ${ro?"":`<div><button class="btn sm" id="wAdd">항목 추가</button></div>`}
-    <div class="calc"><div class="box"><div class="l">통상임금 월 합계</div><div class="v" id="wSum">0</div></div>
-      <div class="box"><div class="l">월 소정근로시간</div><div class="v"><input class="i mono" type="number" id="wHours" min="1" value="${esc(D.hours)}" style="font-size:17px;font-weight:700;width:110px;padding:2px 6px" ${ro?"disabled":""}> 시간</div></div>
-      <div class="box"><div class="l">통상시급</div><div class="v" id="wHr">0</div></div></div>
-    <div class="tiny muted">분기·연 단위로 지급되는 항목(예: 정기상여금)은 연간 지급액 ÷ 12로 월 환산액을 넣어 주세요. 주 40시간 근무자의 월 소정근로시간은 주휴 포함 209시간입니다.</div>
-  </div>`;
-  const calc=()=>{const s=wageSum(D.items);$("#wSum").textContent=won(s)+"원";$("#wHr").textContent=won(s/(+D.hours||209))+"원"};calc();
-  const ed=$("#wEditor");
-  ed.oninput=ed.onchange=e=>{const t=e.target;if(t.id==="wHours"){D.hours=t.value;S.wDirty=true;calc();return}const tr=t.closest("tr[data-i]");if(!tr||!t.dataset.f)return;const it=D.items[+tr.dataset.i];it[t.dataset.f]=t.type==="checkbox"?t.checked:t.value;S.wDirty=true;calc()};
-  ed.onclick=e=>{const rm=e.target.closest("[data-rm]");if(rm){D.items.splice(+rm.dataset.rm,1);S.wDirty=true;drawWEditor();return}
-    if(e.target.id==="wAdd"){D.items.push({name:"",inc:false,kind:"고정",cycle:"매월",amount:"",memo:""});S.wDirty=true;drawWEditor();const l=D.items.length-1;$("#wn"+l)&&$("#wn"+l).focus()}}}
-function drawMatrix(){const ids=sitesSorted().map(s=>s.id).filter(id=>S.wages[id]);const box=$("#wMatrix");if(!box)return;
-  if(!ids.length){box.innerHTML=`<div class="empty"><b>아직 저장된 사업장이 없습니다</b>위에서 사업장을 고르고 항목을 확인한 뒤 저장하면 사업장끼리 비교할 수 있습니다.</div>`;return}
-  const items=[];ids.forEach(id=>(S.wages[id].items||[]).forEach(it=>{if(!items.includes(it.name))items.push(it.name)}));
-  box.innerHTML=`<table class="matrix"><thead><tr><th>사업장</th>${items.map(n=>`<th>${esc(n)}</th>`).join("")}<th>통상시급</th></tr></thead><tbody>${ids.map(id=>{const w=S.wages[id];const m={};(w.items||[]).forEach(it=>m[it.name]=it);
-    return `<tr style="cursor:pointer" data-w="${esc(id)}"><td><b>${esc(siteName(id))}</b></td>${items.map(n=>`<td>${m[n]?(m[n].inc?'<span class="dot-y">●</span>':'<span class="muted">○</span>'):""}</td>`).join("")}<td class="mono">${wageSum(w.items)?won(wageSum(w.items)/(+w.hours||209)):"—"}</td></tr>`}).join("")}</tbody></table>`;
-  $$("#wMatrix [data-w]").forEach(tr=>tr.onclick=()=>{if(S.wDirty){toast("저장하지 않은 변경이 있습니다. 먼저 저장하세요.");return}S.wSite=tr.dataset.w;S.wDraft=null;refWages();window.scrollTo(0,0)})}
-
 /* ---------- 데이터 연결 ----------
    js/config.js 에 Supabase 주소·키가 있으면 Supabase(js/store-supabase.js), 없으면 이 브라우저(js/store.js) */
 window.WV={go,close:closeDrawer};
@@ -388,7 +326,6 @@ async function boot(){
   sub("sites",a=>{S.sites=a.map(x=>({...x,f:x.f||{}}));applyFixes()});
   sub("issues",a=>S.issues=a);
   sub("notes",a=>S.notes=a);
-  sub("wages",a=>{const m={};a.forEach(x=>m[x.id]=x);S.wages=m});
   sub("wagenotes",a=>{const m={};a.forEach(x=>m[x.id]=x);S.wagenotes=m});
 }
 let fixing=false;
