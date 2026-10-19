@@ -100,12 +100,10 @@ function vHome(){const n=S.sites.length,open=S.issues.filter(i=>i.status!=="완�
   </div>
   <div class="grid g-2">
     <div class="card"><div class="hd"><h2>최근 노무 문제</h2><button class="btn sm" style="margin-left:auto" onclick="WV.go('issues')">전체 보기</button></div>
-      ${recent.length?`<div class="list">${recent.map(i=>issueRow(i)).join("")}</div>`:`<div class="empty"><b>등록된 노무 문제가 없습니다</b>노무 문제 메뉴에서 사업장별 이슈를 입력하면 여기에 최근 5건이 표시됩니다.</div>`}</div>
+      ${recent.length?`<div class="list">${recent.map(i=>issueRow(i)).join("")}</div>`:`<div class="empty"><b>등록된 노무 문제가 없습니다</b>노무관리 메뉴에서 사업장별 노무 문제를 입력하면 여기에 최근 5건이 표시됩니다.</div>`}</div>
     <div class="grid">
       <div class="card"><div class="hd"><h2>위험도별 미해결 노무 문제</h2></div><div class="bd">${open.length?bars(byRisk,"",riskColor):`<div class="muted">미해결 노무 문제가 없습니다.</div>`}</div></div>
       <div class="card"><div class="hd"><h2>급여일별 사업장</h2></div><div class="bd">${n?bars(by("급여일").map(([k,c])=>[/^\d+$/.test(k)?k+"일":k,c])):`<div class="muted">사업장 정보를 불러오는 중입니다.</div>`}</div></div>
-      <div class="card"><div class="hd"><h2>인사담당자별 사업장</h2></div><div class="bd">${n?bars(by("경영지원본부 인사담당자")):`<div class="muted">—</div>`}</div></div>
-      <div class="card"><div class="hd"><h2>파견 / 도급 구분</h2></div><div class="bd">${n?bars(by("파견/도급구분")):`<div class="muted">—</div>`}</div></div>
     </div>
   </div>`}
 
