@@ -109,7 +109,7 @@ function vHome(){const n=S.sites.length,open=S.issues.filter(i=>i.status!=="완�
 
 /* ===== 급여기초 ===== */
 function vSites(){return `<div class="page-h"><div><h1>급여기초</h1><p>사업장별 급여·계약·담당자 정보입니다. 조건을 조합해 필터링하고, 행을 누르면 상세 정보와 해당 사업장의 노무 문제·특이사항을 함께 볼 수 있습니다.</p></div>
-  <div class="act"><button class="btn" id="csv" hidden>필터 결과 CSV 저장</button><button class="btn pri" id="addSite" ${!db||readOnly?"disabled":""}>사업장 추가</button></div></div>
+  <div class="act">${xlBtns("sites")}<button class="btn pri" id="addSite" ${!db||readOnly?"disabled":""}>사업장 추가</button></div></div>
   <div class="card">
     <div class="bd" style="border-bottom:1px solid var(--line)"><div class="filters">
       <label class="f q">전체 검색<input class="i" id="sq" type="search" placeholder="사업장명, 담당자, 주소, 특이사항 등" value="${esc(S.siteF.q)}"></label>
@@ -129,7 +129,6 @@ function bindSites(){$("#sq").addEventListener("input",e=>{S.siteF.q=e.target.va
   $("#shead").addEventListener("click",e=>{const th=e.target.closest("th[data-k]");if(!th)return;const k=th.dataset.k;if(S.siteF.sort===k)S.siteF.dir*=-1;else{S.siteF.sort=k;S.siteF.dir=1}refSites()});
   $("#sbody").addEventListener("click",e=>{const tr=e.target.closest("tr[data-id]");if(tr)openDrawer(tr.dataset.id)});
   $("#addSite").addEventListener("click",()=>{S.drawer="__new";S.dEdit=true;S.dTab="info";renderDrawer()});
-  if(dl){const b=$("#csv");b.hidden=false;b.addEventListener("click",saveCsv)}
   refSites()}
 function refSites(){if(!$("#sbody"))return;
   FILTERS.forEach(([k,l],i)=>{const sel=$("#sf"+i);const vals=[...new Set(S.sites.map(s=>(s.f[k]||"미기재").trim()))].sort((a,b)=>a.localeCompare(b,"ko",{numeric:true}));
@@ -143,10 +142,6 @@ function refSites(){if(!$("#sbody"))return;
   const q=S.siteF.q.trim();const mono=k=>/코드|연락처|급여일|산정|번호|계약일|계약시작일|순번/.test(k);
   $("#sbody").innerHTML=rows.length?rows.map(s=>`<tr data-id="${esc(s.id)}"><td>${hl(s.f[NAME]||"(이름 없음)",q)}</td>${cols.map(k=>`<td class="${mono(k)?"mono":""}">${hl(s.f[k]||"",q)}</td>`).join("")}</tr>`).join("")
     :`<tr><td colspan="${cols.length+1}"><div class="empty"><b>${S.sites.length?"조건에 맞는 사업장이 없습니다":"사업장 정보가 아직 없습니다"}</b>${S.sites.length?"필터를 줄이거나 초기화해 보세요.":"‘사업장 추가’로 첫 사업장을 등록하세요."}</div></td></tr>`}
-function sitesCsv(rows){const q=v=>`"${String(v??"").replace(/"/g,'""')}"`;
-  return "﻿"+COLS.map(q).join(",")+"\n"+rows.map(s=>COLS.map(k=>q(s.f[k])).join(",")).join("\n")}
-async function saveCsv(){const csv=sitesCsv(siteFiltered());
-  try{await dl.save({filename:`급여기초_${today()}.csv`,data:new Blob([csv],{type:"text/csv;charset=utf-8"})})}catch(e){}}
 
 /* ===== 사업장 상세 드로어 ===== */
 function openDrawer(id,tab){Object.assign(S,{drawer:id,dTab:tab||"info",dEdit:false,dForm:null,dDirty:false,wnDraft:null,dWarn:false});renderDrawer(true)}
@@ -203,7 +198,7 @@ const rIdx=i=>{const k=RISKS.indexOf(i.risk);return k<0?1:k};
 const issueSort=(a,b)=>(STATUSES.indexOf(a.status)-STATUSES.indexOf(b.status))||(rIdx(a)-rIdx(b))||(b.date||"").localeCompare(a.date||"");
 // 사업장 표 공통: 검색어가 사업장명이나 기록 내용에 있으면 통과
 const textHit=(q,...vals)=>!q||vals.some(v=>String(v||"").toLowerCase().includes(q));
-function vIssues(){const F=S.issueF;return `<div class="page-h"><div><h1>노무 문제</h1><p>사업장별 노무 문제 현황입니다. 사업장을 누르면 그 사업장의 노무 문제를 보고 입력·수정할 수 있습니다.</p></div></div>
+function vIssues(){const F=S.issueF;return `<div class="page-h"><div><h1>노무 문제</h1><p>사업장별 노무 문제 현황입니다. 사업장을 누르면 그 사업장의 노무 문제를 보고 입력·수정할 수 있습니다.</p></div><div class="act">${xlBtns("issues")}</div></div>
   <div class="card">
     <div class="bd" style="border-bottom:1px solid var(--line)"><div class="filters f4">
       <label class="f q">전체 검색<input class="i" id="iq" type="search" placeholder="사업장명, 제목, 내용, 담당자" value="${esc(F.q)}"></label>
@@ -255,7 +250,7 @@ function recRow(k,n,inDrawer){return `<div class="item"><span class="bar" style=
   <div class="meta"><span class="pill p-acc mono">${esc(n.month)}</span>${inDrawer?"":`<b style="color:var(--ink)">${esc(siteName(n.siteId))}</b>`}<span>${esc(n.type)}</span>${n.amount?`<span class="mono">${won(n.amount)}원</span>`:""}${n.repeat?`<span class="pill p-neutral">매월 반복</span>`:""}</div>
   <h3>${esc(n.title||"")}</h3>${n.content?`<p>${esc(n.content)}</p>`:""}</div>
   ${inDrawer&&db&&!readOnly?`<div class="side"><button class="btn sm" data-red="${esc(n.id)}" data-k="${k}">수정</button><button class="btn sm danger" data-rdel="${esc(n.id)}" data-k="${k}">삭제</button></div>`:""}</div>`}
-function vRec(k){const R=REC[k],F=S.recF[k],p=R.p;return `<div class="page-h"><div><h1>${R.title}</h1><p>${R.desc}</p></div></div>
+function vRec(k){const R=REC[k],F=S.recF[k],p=R.p;return `<div class="page-h"><div><h1>${R.title}</h1><p>${R.desc}</p></div><div class="act">${xlBtns(k)}</div></div>
   <div class="card">
     <div class="bd" style="border-bottom:1px solid var(--line)"><div class="filters f3">
       <label class="f q">전체 검색<input class="i" id="${p}q" type="search" placeholder="사업장명, 제목, 내용" value="${esc(F.q)}"></label>
@@ -344,6 +339,93 @@ function bindDrawerRecords(root,s){const body=$(".drawer .db",root);if(!body)ret
         if(F.id){const o=S[F.kind].find(x=>x.id===F.id)||{};await db.doc(F.kind+"/"+F.id).set({...strip(o),...d});toast("수정했습니다")}else{await db.collection(F.kind).add({...d,by:uid||"",createdAt:now});toast("등록했습니다")}}
       S.dForm=null;redraw()}catch(x){err(x)}})}
 
+/* ===== 엑셀 다운로드 · 업로드 (메뉴별) ===== */
+// 열: [엑셀 머리글, 필드]. ID 열이 있으면 같은 건을 고치고, 비어 있으면 새로 추가
+const XL={
+  sites:{title:"급여기초",cols:()=>[["ID","id"],...COLS.map(k=>[lbl(k),k])]},
+  bills:{title:"청구 특이사항",cols:()=>recCols("bills")},
+  notes:{title:"급여 특이사항",cols:()=>recCols("notes")},
+  issues:{title:"노무 문제",cols:()=>[["ID","id"],["사업장명","site"],["발생일","date"],["유형","type"],["제목","title"],["내용","content"],["위험도","risk"],["처리상태","status"],["담당자","owner"],["처리 결과","result"]]}};
+const recCols=k=>[["ID","id"],["사업장명","site"],[REC[k].month,"month"],["구분","type"],["제목","title"],["내용","content"],["금액","amount"],["매월 반복","repeat"]];
+function xlRows(k){const cols=XL[k].cols();let list;
+  if(k==="sites")list=sitesSorted().map(s=>cols.map(([,f])=>f==="id"?s.id:(s.f[f]||"")));
+  else list=S[k].slice().sort(k==="issues"?((a,b)=>(b.date||"").localeCompare(a.date||"")):byMonth).map(r=>cols.map(([,f])=>f==="id"?r.id:f==="site"?siteName(r.siteId):f==="repeat"?(r.repeat?"Y":""):f==="amount"?(r.amount||""):(r[f]||"")));
+  return [cols.map(c=>c[0]),...list]}
+async function xlDownload(k){try{await dl.save({filename:`${XL[k].title}_${today()}.xlsx`,data:XLSXLite.write([{name:XL[k].title,rows:xlRows(k)}])})}catch(e){console.error(e);toast("엑셀 파일을 만들지 못했습니다")}}
+async function xlDownloadAll(){try{await dl.save({filename:`급여노무_전체_${today()}.xlsx`,data:XLSXLite.write(Object.keys(XL).map(k=>({name:XL[k].title,rows:xlRows(k)})))})}catch(e){console.error(e);toast("엑셀 파일을 만들지 못했습니다")}}
+// 엑셀 값 맞추기 (날짜 칸은 엑셀 일련번호로 올 수 있음)
+const isSerial=v=>/^\d{4,5}(\.\d+)?$/.test(v)&&+v>20000&&+v<80000;
+const ymd=d=>d.toISOString().slice(0,10);
+function xlDate(v){if(!v)return "";if(isSerial(v))return ymd(XLSXLite.serialToDate(v));return isoDate(v)}
+function xlMonth(v){if(!v)return "";if(isSerial(v))return ymd(XLSXLite.serialToDate(v)).slice(0,7);
+  let m=String(v).trim().match(/^(\d{4})\D?(\d{1,2})(\D\d{1,2})?$/);return m&&+m[2]>=1&&+m[2]<=12?`${m[1]}-${m[2].padStart(2,"0")}`:null}
+const truthy=v=>/^(y|yes|예|o|v|true|1|반복|✓|✔)$/i.test(String(v).trim());
+// 파일 → 반영 계획 {add:[], upd:[], same:n, errs:[], ignored:[]}
+function xlPlan(k,rows){const cols=XL[k].cols(),plan={add:[],upd:[],same:0,errs:[],ignored:[]};
+  const head=(rows[0]||[]).map(h=>String(h||"").replace(/\s+/g," ").trim());
+  const byHead={};cols.forEach(([h,f])=>{byHead[h]=f});if(k==="sites")COLS.forEach(f=>{byHead[f]=f});
+  const map=head.map(h=>byHead[h]);head.forEach((h,i)=>{if(h&&!map[i])plan.ignored.push(h)});
+  const need=k==="sites"?[NAME]:k==="issues"?["site","date","title"]:["site","month","title"];
+  const miss=need.filter(f=>!map.includes(f));if(miss.length){plan.errs.push({row:1,msg:"필수 열이 없습니다: "+miss.map(f=>cols.find(c=>c[1]===f)?.[0]||f).join(", ")});return plan}
+  const siteByName={};S.sites.forEach(s=>{const n=(s.f[NAME]||"").trim();if(n&&!siteByName[n])siteByName[n]=s});
+  rows.slice(1).forEach((r,ri)=>{const row=ri+2,v={};map.forEach((f,i)=>{if(f)v[f]=String(r[i]??"").trim()});
+    if(!Object.values(v).some(Boolean))return;
+    const err=m=>plan.errs.push({row,msg:m});
+    if(k==="sites"){if(!v[NAME])return err("사업장명이 비어 있습니다");
+      const old=(v.id&&S.sites.find(s=>s.id===v.id))||(!v.id&&siteByName[v[NAME]]);
+      const f={...(old?old.f:{})};
+      for(const [key,val] of Object.entries(v)){if(key==="id")continue;let x=val;
+        if(DATE_COLS.includes(key)&&x){const d=xlDate(x);if(d===null)return err(`${lbl(key)} 날짜 형식이 아닙니다: ${x}`);x=d}
+        if(key==="사업자번호"&&x)x=bizNo(x);
+        if(key==="계약유지상태"&&x&&!CONTRACT_STATES.includes(x))return err(`계약유지상태는 ${CONTRACT_STATES.join("/")} 중 하나여야 합니다: ${x}`);
+        if(MULTI[key]&&x){const bad=splitMulti(x).filter(o=>!MULTI[key].includes(o));if(bad.length)return err(`${lbl(key)}에 없는 값: ${bad.join(", ")}`);x=splitMulti(x).join(", ")}
+        if(x)f[key]=x;else delete f[key]}
+      if(old&&JSON.stringify(f)===JSON.stringify(old.f)){plan.same++;return}
+      (old?plan.upd:plan.add).push({id:old?old.id:null,name:f[NAME],data:{order:old?old.order:null,f,source:old?.source||"엑셀 업로드"}});return}
+    const site=siteByName[v.site];if(!site)return err(v.site?`급여기초에 없는 사업장입니다: ${v.site}`:"사업장명이 비어 있습니다");
+    if(!v.title)return err("제목이 비어 있습니다");
+    const old=v.id&&S[k].find(x=>x.id===v.id),d={...(old?strip(old):{}),siteId:site.id};
+    for(const [key,val] of Object.entries(v)){if(key==="id"||key==="site")continue;let x=val;
+      if(key==="date"){x=xlDate(x);if(!x)return err(`발생일 날짜 형식이 아닙니다: ${val||"(빈 칸)"}`)}
+      else if(key==="month"){x=xlMonth(x);if(!x)return err(`${REC[k].month} 형식이 아닙니다 (예: 2026-10): ${val||"(빈 칸)"}`)}
+      else if(key==="amount"){const n=String(x).replace(/[,\s원]/g,"");if(n&&!/^-?\d+(\.\d+)?$/.test(n))return err(`금액이 숫자가 아닙니다: ${val}`);x=n?Math.round(+n):0}
+      else if(key==="repeat")x=truthy(x);
+      else if(key==="risk"){if(x&&!RISKS.includes(x))return err(`위험도는 ${RISKS.join("/")} 중 하나여야 합니다: ${x}`);x=x||"보통"}
+      else if(key==="status"){if(x&&!STATUSES.includes(x))return err(`처리상태는 ${STATUSES.join("/")} 중 하나여야 합니다: ${x}`);x=x||STATUSES[0]}
+      if(x===""&&!(key in d))continue;d[key]=x}
+    if(k==="issues"){d.risk=d.risk||"보통";d.status=d.status||STATUSES[0];d.type=d.type||ISSUE_TYPES[0]}else{d.type=d.type||REC[k].types[0];d.amount=d.amount||0;d.repeat=!!d.repeat}
+    if(old&&JSON.stringify(d)===JSON.stringify(strip(old))){plan.same++;return}
+    (old?plan.upd:plan.add).push({id:old?old.id:null,name:`${site.f[NAME]} · ${d.title}`,data:d})});
+  return plan}
+async function xlUpload(k,file){let books;try{books=await XLSXLite.read(file)}catch(e){console.error(e);toast("엑셀 파일을 읽지 못했습니다: "+(e.message||".xlsx 파일인지 확인하세요"));return}
+  const sh=books.find(b=>b.name===XL[k].title)||books[0];if(!sh){toast("시트가 없습니다");return}
+  xlConfirm(k,xlPlan(k,sh.rows),file.name)}
+function xlConfirm(k,plan,fname){const root=$("#modal-root"),n=plan.add.length+plan.upd.length;
+  const li=a=>a.slice(0,8).map(x=>`<li>${esc(x.name||"")}</li>`).join("")+(a.length>8?`<li class="muted">외 ${a.length-8}건</li>`:"");
+  root.innerHTML=`<div class="drawer-bg" data-x></div><div class="modal" role="dialog" aria-modal="true" aria-label="엑셀 업로드 확인">
+    <h2>${esc(XL[k].title)} 엑셀 업로드</h2><p class="tiny muted mono">${esc(fname)}</p>
+    <div class="chips"><span class="pill p-acc">새로 추가 ${plan.add.length}건</span><span class="pill p-prog">변경 ${plan.upd.length}건</span><span class="pill p-neutral">그대로 ${plan.same}건</span>${plan.errs.length?`<span class="pill p-open">오류 ${plan.errs.length}건</span>`:""}</div>
+    ${plan.add.length?`<section><h3 class="sec-t">새로 추가</h3><ul>${li(plan.add)}</ul></section>`:""}
+    ${plan.upd.length?`<section><h3 class="sec-t">변경</h3><ul>${li(plan.upd)}</ul></section>`:""}
+    ${plan.errs.length?`<section><h3 class="sec-t" style="color:var(--bad)">오류 (반영하지 않음)</h3><ul>${plan.errs.slice(0,20).map(e=>`<li><span class="mono">${e.row}행</span> ${esc(e.msg)}</li>`).join("")}${plan.errs.length>20?`<li class="muted">외 ${plan.errs.length-20}건</li>`:""}</ul></section>`:""}
+    ${plan.ignored.length?`<p class="tiny muted">알 수 없는 열이라 무시합니다: ${esc(plan.ignored.join(", "))}</p>`:""}
+    <p class="tiny muted">파일에 없는 기존 자료는 지우지 않습니다.${k==="sites"?" 파일에 있는 열의 빈 칸은 값을 지웁니다.":""}</p>
+    <div style="display:flex;gap:8px;justify-content:flex-end">${n?`<button class="btn pri" id="xlGo">${n}건 반영</button>`:""}<button class="btn" data-x>${n?"취소":"닫기"}</button></div></div>`;
+  const close=()=>{root.innerHTML=""};$$("[data-x]",root).forEach(b=>b.onclick=close);
+  const go=$("#xlGo");if(go)go.onclick=async()=>{go.disabled=true;go.textContent="반영 중…";const now=new Date().toISOString();let done=0,ord=Math.max(0,...S.sites.map(x=>x.order||0));
+    try{for(const x of [...plan.upd,...plan.add]){
+        if(k==="sites"){const id=x.id||"s"+Date.now().toString(36)+done;await db.doc("sites/"+id).set({...x.data,order:x.data.order??++ord,updatedAt:now,updatedBy:uid||""})}
+        else if(x.id)await db.doc(k+"/"+x.id).set({...x.data,updatedAt:now});
+        else await db.collection(k).add({...x.data,by:uid||"",createdAt:now,updatedAt:now});
+        done++;go.textContent=`반영 중… ${done}/${n}`}
+      close();toast(`${done}건을 반영했습니다`)}catch(e){close();err(e);if(done)toast(`${done}건 반영 후 중단됐습니다`)}}}
+// 메뉴 머리의 버튼
+const xlBtns=k=>`<button class="btn" data-xl-down="${k}">엑셀 다운로드</button>${db&&!readOnly?`<button class="btn" data-xl-up="${k}">엑셀 업로드</button>`:""}`;
+document.addEventListener("click",e=>{const d=e.target.closest("[data-xl-down]");if(d){xlDownload(d.dataset.xlDown);return}
+  const u=e.target.closest("[data-xl-up]");if(u){const inp=$("#xlFile");inp.dataset.k=u.dataset.xlUp;inp.value="";inp.click()}});
+$("#xlFile").onchange=e=>{const f=e.target.files[0];if(f)xlUpload(e.target.dataset.k,f)};
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&$("#modal-root").innerHTML)$("#modal-root").innerHTML=""});
+
 /* ---------- 데이터 연결 ----------
    js/config.js 에 Supabase 주소·키가 있으면 Supabase(js/store-supabase.js), 없으면 이 브라우저(js/store.js) */
 window.WV={go,close:closeDrawer};
@@ -372,7 +454,7 @@ async function applyFixes(){if(readOnly||fixing)return;const by={};DATA_FIXES.fo
   catch(e){console.error(e);return} // 실패하면 이번 접속 동안은 다시 시도하지 않음
   applyFixes()}
 /* 백업 */
-$("#bkExport").onclick=()=>dl.save({filename:`급여기초_전체_${today()}.csv`,data:new Blob([sitesCsv(sitesSorted())],{type:"text/csv;charset=utf-8"})});
+$("#bkExport").onclick=xlDownloadAll;
 $("#bkImport").onclick=()=>$("#bkFile").click();
 $("#bkFile").onchange=async e=>{const f=e.target.files[0];if(!f)return;try{await db.importJSON(await f.text());toast("백업을 불러왔습니다")}catch(x){toast("불러오지 못했습니다: "+(x.message||"파일 형식을 확인하세요"))}e.target.value=""};
 // Supabase 모드: 이 브라우저(localStorage)의 기존 데이터를 공용 저장소로 올림 (같은 id 는 덮어씀)
