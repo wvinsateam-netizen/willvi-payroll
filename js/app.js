@@ -22,7 +22,7 @@ const GROUPS={
   "기본":["사업장 코드","원가중심점","소속부서","파견/도급구분","업무내용","급여일","경영지원본부 인사담당자"],
   "업무담당자":["소속부서","사업부담당자","사업부담당자 연락처","CRM 전화응대 담당자","전화 응대 연락처","급여/총무 담당자","급여 총무 연락처","경영지원본부 인사담당자"],
   "계약·청구":["파견/도급구분","계약형태 (도급, I/H, F/O, 파견)","업무형태 (I/B,O/B,파견 등)","청구형태 (인원, 콜, 업무도급, 성과유지 등)","근로자 계약형태","근로자 근무형태","월청구분 당사입금일","사업장 주소지(실근무지)","산재개시번호"],
-  "급여":["급여일","급여산정 시작일","급여산정 종료일","퇴직금 적립방식","퇴직금적립방식 변경사항 (발생대상 사업장만 작성)","연차수당 적립방식","퇴직연금DC사업장 근로계약 필수 작성시기"],
+  "임금":["급여일","급여산정 시작일","급여산정 종료일","퇴직금 적립방식","퇴직금적립방식 변경사항 (발생대상 사업장만 작성)","연차수당 적립방식","퇴직연금DC사업장 근로계약 필수 작성시기"],
   "복리후생":["신원보증보험","근로자의날 선물 여부","생일축하금 (금액기재)","설,추석 선물 여부"],
   "비고":["기타","특이사항","사업장명 변경 전(2024-12)"],
   "전체":COLS.filter(c=>c!==NAME)
@@ -163,7 +163,7 @@ function renderDrawer(force){const root=$("#drawer-root");if(!S.drawer){root.inn
     if(k==="사업자번호")return `<label class="f">${esc(lbl(k))}<input class="i mono" id="sfld${i}" data-k="${esc(k)}" value="${esc(s.f[k]?bizNo(s.f[k]):"")}" inputmode="numeric" maxlength="12" placeholder="000-00-00000"></label>`;const long=/주소|특이사항|기타|업무내용/.test(k);return `<label class="f">${esc(lbl(k))}${long?`<textarea class="i" id="sfld${i}" data-k="${esc(k)}" rows="2">${esc(s.f[k]||"")}</textarea>`:`<input class="i" id="sfld${i}" data-k="${esc(k)}" value="${esc(s.f[k]||"")}" ${k===NAME?"required":""}>`}</label>`}).join("")}
     <div style="display:flex;gap:8px;position:sticky;bottom:0;background:var(--surface);padding-block:10px"><button class="btn pri" type="submit">저장</button><button class="btn" type="button" id="dCancel">취소</button>${isNew?"":`<button class="btn danger" type="button" id="dDel" style="margin-left:auto">사업장 삭제</button>`}</div></form>`}
   else if(S.dTab==="info"){const sec=(t,ks)=>`<section><h3 class="sec-t">${esc(t)}</h3><dl class="kv">${ks.map(k=>`<dt>${esc(lbl(k))}</dt><dd class="${/연락처|코드|번호/.test(k)?"mono":""}">${k==="계약유지상태"&&s.f[k]?`<span class="pill ${s.f[k]==="계약"?"p-acc":"p-neutral"}">${esc(s.f[k])}</span>`:esc(s.f[k]||"—")}</dd>`).join("")}</dl></section>`;
-    const used=new Set();const out=["업무담당자","계약·청구","급여","복리후생","비고"].map(g=>{const ks=GROUPS[g].filter(k=>!used.has(k));ks.forEach(k=>used.add(k));return sec(g,ks)});
+    const used=new Set();const out=["업무담당자","계약·청구","임금","복리후생","비고"].map(g=>{const ks=GROUPS[g].filter(k=>!used.has(k));ks.forEach(k=>used.add(k));return sec(g,ks)});
     out.unshift(sec("기본",[...BASIC,...["사업장 코드","원가중심점","업무내용"].filter(k=>!used.has(k))]));
     const extra=Object.keys(s.f).filter(k=>!COLS.includes(k)&&!REMOVED.includes(k));if(extra.length)out.push(sec("추가 항목",extra));body=out.join("")}
   else if(S.dTab==="issues")body=drawerIssues(s,iss);
