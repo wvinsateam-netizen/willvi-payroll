@@ -244,7 +244,6 @@ function noteRow(n,inDrawer){return `<div class="item"><span class="bar" style="
   <div class="meta"><span class="pill p-acc mono">${esc(n.month)}</span>${inDrawer?"":`<b style="color:var(--ink)">${esc(siteName(n.siteId))}</b>`}<span>${esc(n.type)}</span>${n.amount?`<span class="mono">${won(n.amount)}원</span>`:""}${n.repeat?`<span class="pill p-neutral">매월 반복</span>`:""}</div>
   <h3>${esc(n.title||"")}</h3>${n.content?`<p>${esc(n.content)}</p>`:""}</div>
   ${inDrawer&&db&&!readOnly?`<div class="side"><button class="btn sm" data-ned="${esc(n.id)}">수정</button><button class="btn sm danger" data-ndel="${esc(n.id)}">삭제</button></div>`:""}</div>`}
-const wnHas=id=>{const w=S.wagenotes[id];return !!(w&&(w.ordinary||w.severance))};
 function vNotes(){const F=S.noteF;return `<div class="page-h"><div><h1>급여 특이사항</h1><p>사업장별 급여 특이사항 현황입니다. 사업장을 누르면 월별 특이사항과 통상임금·퇴직금 메모를 함께 보고 입력할 수 있습니다.</p></div></div>
   <div class="card">
     <div class="bd" style="border-bottom:1px solid var(--line)"><div class="filters f3">
@@ -253,9 +252,9 @@ function vNotes(){const F=S.noteF;return `<div class="page-h"><div><h1>급여 �
       <label class="f">구분<select class="i" id="nfType"><option value="">전체</option>${NOTE_TYPES.map(t=>`<option>${t}</option>`).join("")}</select></label>
     </div></div>
     <div class="toolbar"><span class="count" id="ncount"></span>
-      <span class="chips" id="nonly"><button class="chip" data-o="1" aria-pressed="${F.only}">기록 있는 사업장</button><button class="chip" data-o="" aria-pressed="${!F.only}">전체 사업장</button></span>
+      <span class="chips" id="nonly"><button class="chip" data-o="1" aria-pressed="${F.only}">특이사항 있는 사업장</button><button class="chip" data-o="" aria-pressed="${!F.only}">전체 사업장</button></span>
       <button class="btn sm" id="nfAll" style="margin-left:auto">전체 기간</button><button class="btn sm" id="nreset">필터 초기화</button></div>
-    <div class="tbl-wrap"><table class="sitetbl"><thead><tr><th>사업장명</th><th>소속부서</th><th class="num" id="nMonthH"></th><th class="num">매월 반복</th><th class="num">전체</th><th>최근 귀속월</th><th>최근 특이사항</th><th>통상임금·퇴직금 메모</th></tr></thead><tbody id="nbody"></tbody></table></div>
+    <div class="tbl-wrap"><table class="sitetbl"><thead><tr><th>사업장명</th><th>소속부서</th><th class="num" id="nMonthH"></th><th class="num">매월 반복</th><th class="num">전체</th><th>최근 귀속월</th><th>최근 특이사항</th></tr></thead><tbody id="nbody"></tbody></table></div>
   </div>`}
 const noteInMonth=(n,m)=>!m||n.month===m||(n.repeat&&n.month<=m);
 function bindNotes(){const F=S.noteF;$("#nfType").value=F.type;
@@ -270,18 +269,17 @@ function refNotes(){if(!$("#nbody"))return;const F=S.noteF,q=F.q.trim().toLowerC
   $("#nMonthH").textContent=F.month?`${F.month.replace("-",".")} 특이사항`:"특이사항";
   const rows=sitesSorted().map(s=>{const all=S.notes.filter(n=>n.siteId===s.id&&(!F.type||n.type===F.type));const nameHit=textHit(q,s.f[NAME]);
       const list=nameHit?all:all.filter(n=>textHit(q,n.title,n.content));const inM=list.filter(n=>noteInMonth(n,F.month));
-      const wn=wnHas(s.id);return {s,list,inM,wn,hit:nameHit||list.length}})
-    .filter(r=>r.hit&&(F.month||F.type?r.inM.length||!F.only&&!F.type:!F.only||r.list.length||r.wn));
+      return {s,list,inM,hit:nameHit||list.length}})
+    .filter(r=>r.hit&&(F.month||F.type?r.inM.length||!F.only&&!F.type:!F.only||r.list.length));
   rows.sort((a,b)=>b.inM.length-a.inM.length||(b.list[0]?.month||"").localeCompare(a.list[0]?.month||"")||(a.s.order??999)-(b.s.order??999));
   const tot=rows.reduce((n,r)=>n+r.inM.length,0);
   $("#ncount").innerHTML=`<b>${rows.length}</b>곳 · ${F.month?F.month.replace("-",".")+" ":""}특이사항 <b>${tot}</b>건`;
-  const n=v=>v?`<span class="num-b">${v}</span>`:`<span class="muted">0</span>`,yes=v=>v?`<span class="pill p-acc">있음</span>`:`<span class="muted">—</span>`;
-  $("#nbody").innerHTML=rows.length?rows.map(({s,list,inM,wn})=>{const last=list.slice().sort((a,b)=>(b.month||"").localeCompare(a.month||""))[0];
+  const n=v=>v?`<span class="num-b">${v}</span>`:`<span class="muted">0</span>`;
+  $("#nbody").innerHTML=rows.length?rows.map(({s,list,inM})=>{const last=list.slice().sort((a,b)=>(b.month||"").localeCompare(a.month||""))[0];
       return `<tr data-id="${esc(s.id)}"><td>${hl(s.f[NAME]||"(이름 없음)",F.q.trim())}</td><td>${esc(s.f["소속부서"]||"")}</td>
         <td class="num">${n(inM.length)}</td><td class="num">${n(list.filter(x=>x.repeat).length)}</td><td class="num">${n(list.length)}</td>
-        <td class="mono">${last?esc(last.month||""):""}</td><td class="clip">${last?esc(last.title||""):`<span class="muted">—</span>`}</td>
-        <td>${yes(wn)}</td></tr>`}).join("")
-    :`<tr><td colspan="8"><div class="empty"><b>${S.notes.length?"조건에 맞는 사업장이 없습니다":"아직 입력된 급여 특이사항이 없습니다"}</b>${S.notes.length?"귀속월이나 필터를 바꿔 보세요.":"‘전체 사업장’을 누르고 사업장을 골라 첫 특이사항을 입력하세요."}</div></td></tr>`}
+        <td class="mono">${last?esc(last.month||""):""}</td><td class="clip">${last?esc(last.title||""):`<span class="muted">—</span>`}</td></tr>`}).join("")
+    :`<tr><td colspan="7"><div class="empty"><b>${S.notes.length?"조건에 맞는 사업장이 없습니다":"아직 입력된 급여 특이사항이 없습니다"}</b>${S.notes.length?"귀속월이나 필터를 바꿔 보세요.":"‘전체 사업장’을 누르고 사업장을 골라 첫 특이사항을 입력하세요."}</div></td></tr>`}
 
 /* ===== 사업장 상세 안의 노무 문제·급여 특이사항 입력 ===== */
 function strip(o){const c={...o};delete c.id;return c}
