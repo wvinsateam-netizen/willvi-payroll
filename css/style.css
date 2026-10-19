@@ -159,3 +159,8 @@ dl.kv dd{margin:0;padding:6px 0;border-bottom:1px dashed var(--line);white-space
 .conn-fail b{font-size:18px}
 .conn-fail>div>span,.conn-fail .msg{color:var(--bad);font-size:13px}
 .conn-fail .msg:empty{display:none}
+/* 엑셀 업로드 확인 */
+.modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:30;width:min(560px,calc(100% - 32px));max-height:calc(100% - 32px);overflow:auto;background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);padding:20px;display:flex;flex-direction:column;gap:12px}
+.modal h2{margin:0;font-size:17px}
+.modal ul{margin:4px 0 0;padding-left:18px;font-size:13px;display:flex;flex-direction:column;gap:2px}
+.modal p{margin:0}
