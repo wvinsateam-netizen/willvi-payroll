@@ -1,7 +1,7 @@
 -- 윌앤비전 급여·노무 관리: Supabase 테이블
 -- Supabase 대시보드 → SQL Editor 에 전체를 붙여 넣고 Run 하세요. 여러 번 실행해도 됩니다.
 --
--- 화면의 데이터 묶음(사업장·노무 문제·급여 특이사항·통상임금·통상임금 메모)마다 테이블 하나.
+-- 화면의 데이터 묶음(사업장·노무 문제·급여 특이사항·청구 특이사항·통상임금·통상임금 메모)마다 테이블 하나.
 -- 각 행은 id 와 내용(data, JSON) 으로 저장합니다. 항목(열)이 늘어나도 테이블을 고칠 필요가 없습니다.
 
 grant usage on schema public to authenticated;
@@ -9,7 +9,7 @@ grant usage on schema public to authenticated;
 do $$
 declare t text;
 begin
-  foreach t in array array['sites','issues','notes','wages','wagenotes'] loop
+  foreach t in array array['sites','issues','notes','bills','wages','wagenotes'] loop
     execute format('create table if not exists public.%I (
       id text primary key,
       data jsonb not null default ''{}''::jsonb,
