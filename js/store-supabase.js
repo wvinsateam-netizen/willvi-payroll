@@ -11,7 +11,7 @@
   var cfg = window.WV_CONFIG || {};
   var enabled = !!(cfg.supabaseUrl && cfg.supabaseAnonKey);
   var LIB = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js";
-  var COLS = ["sites", "issues", "notes", "bills", "wages", "wagenotes"];
+  var COLS = ["sites", "issues", "safety", "notes", "bills", "wages", "wagenotes"];
   var PAGE = 1000;
   var sb = null;
   var cache = {}, listeners = {}, started = {};

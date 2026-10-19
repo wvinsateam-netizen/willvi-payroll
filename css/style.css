@@ -164,3 +164,8 @@ dl.kv dd{margin:0;padding:6px 0;border-bottom:1px dashed var(--line);white-space
 .modal h2{margin:0;font-size:17px}
 .modal ul{margin:4px 0 0;padding-left:18px;font-size:13px;display:flex;flex-direction:column;gap:2px}
 .modal p{margin:0}
+/* 메뉴 안 탭 (노무관리) */
+.ptabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:16px;overflow-x:auto}
+.ptabs button{all:unset;cursor:pointer;padding:10px 14px 9px;color:var(--muted);font-weight:600;border-bottom:2px solid transparent;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.ptabs button[aria-selected="true"]{color:var(--brand);border-color:var(--brand)}
+.ptabs button:focus-visible{outline:2px solid var(--brand);outline-offset:-2px}

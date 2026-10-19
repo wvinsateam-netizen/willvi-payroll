@@ -29,6 +29,8 @@ const GROUPS={
 };
 const FILTERS=[["소속부서","소속부서"],["파견/도급구분","파견/도급"],["계약형태 (도급, I/H, F/O, 파견)","계약형태"],["급여일","급여일"],["퇴직금 적립방식","퇴직금 적립"]];
 const ISSUE_TYPES=["임금·체불","근로시간·연장","휴가·휴직","징계·해고","직장 내 괴롭힘","산업재해","퇴직금·연금","근로계약","4대보험","기타"];
+const SAFETY_TYPES=["안전보건교육","건강검진","위험성평가","작업환경측정","산업재해","안전점검","산업안전보건위원회","기타"];
+const SAFETY_STATES=["예정","완료"];
 const STATUSES=["접수","진행중","완료"];
 const RISKS=["높음","보통","낮음"];
 const BILL_TYPES=["인원 변동","단가·요율","추가 청구","차감·환불","정산","입금","기타"];
@@ -40,12 +42,12 @@ const DATA_FIXES=[
   ["s07","경영지원본부 인사담당자","강미리","주예린"],["s08","경영지원본부 인사담당자","강미리","주예린"]];
 
 /* ---------- 상태 ---------- */
-const S={view:"home",sites:[],issues:[],notes:[],bills:[],wagenotes:{},loaded:{sites:false,issues:false,notes:false,bills:false,wagenotes:false},
+const S={view:"home",sites:[],issues:[],safety:[],notes:[],bills:[],wagenotes:{},loaded:{sites:false,issues:false,safety:false,notes:false,bills:false,wagenotes:false},laborTab:"issues",safetyF:{q:"",type:"",state:"",only:true},
   siteF:{q:"",group:"기본",sort:null,dir:1},siteSel:{},issueF:{q:"",status:"",type:"",risk:"",only:true},recF:{notes:{q:"",month:"",type:"",only:true},bills:{q:"",month:"",type:"",only:true}},
   drawer:null,dTab:"info",dEdit:false,dForm:null,dDirty:false,wnDraft:null};
 let db=null,user=null,uid=null,dl=null,readOnly=false;
 const names={};
-try{const v=localStorage.getItem("wv-view");if(v)S.view=v;const g=localStorage.getItem("wv-group");if(g&&GROUPS[g])S.siteF.group=g;}catch(e){}
+try{const v=localStorage.getItem("wv-view");if(v)S.view=v;const g=localStorage.getItem("wv-group");if(g&&GROUPS[g])S.siteF.group=g;const lt=localStorage.getItem("wv-labor");if(lt==="safety")S.laborTab=lt;}catch(e){}
 
 /* ---------- 유틸 ---------- */
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
@@ -70,17 +72,17 @@ const who=id=>id?`<span data-uid="${esc(id)}">${esc(names[id]||"작성자")}</sp
 /* ---------- 내비 ---------- */
 $("#nav").addEventListener("click",e=>{const b=e.target.closest("button[data-v]");if(!b)return;go(b.dataset.v)});
 function go(v,opt){S.view=v;try{localStorage.setItem("wv-view",v)}catch(e){}if(opt)Object.assign(S,opt);render();window.scrollTo(0,0)}
-function counts(){$("#c-sites").textContent=S.sites.length;$("#c-issues").textContent=S.issues.filter(i=>i.status!=="완료").length;
+function counts(){$("#c-sites").textContent=S.sites.length;$("#c-issues").textContent=S.issues.filter(i=>i.status!=="완료").length+S.safety.filter(overdue).length;
   $("#c-notes").textContent=S.notes.filter(n=>n.month===thisMonth()).length;$("#c-bills").textContent=S.bills.filter(n=>n.month===thisMonth()).length;
   $$("#nav button").forEach(b=>b.setAttribute("aria-current",b.dataset.v===S.view?"page":"false"))}
 
 /* ---------- 렌더 ---------- */
 function render(){counts();const m=$("#main");
   const banner=readOnly?`<div class="banner">보기 전용입니다.</div>`:"";
-  m.innerHTML=banner+({home:vHome,sites:vSites,bills:()=>vRec("bills"),issues:vIssues,notes:()=>vRec("notes")}[S.view]||vHome)();
-  ({home:()=>{},sites:bindSites,bills:()=>bindRec("bills"),issues:bindIssues,notes:()=>bindRec("notes")}[S.view]||(()=>{}))();
+  m.innerHTML=banner+({home:vHome,sites:vSites,bills:()=>vRec("bills"),issues:vLabor,notes:()=>vRec("notes")}[S.view]||vHome)();
+  ({home:()=>{},sites:bindSites,bills:()=>bindRec("bills"),issues:bindLabor,notes:()=>bindRec("notes")}[S.view]||(()=>{}))();
   fillNames();renderDrawer()}
-function refresh(){counts();({home:()=>render(),sites:refSites,bills:()=>refRec("bills"),issues:refIssues,notes:()=>refRec("notes")}[S.view]||render)();if(S.drawer)renderDrawer();fillNames()}
+function refresh(){counts();({home:()=>render(),sites:refSites,bills:()=>refRec("bills"),issues:refLabor,notes:()=>refRec("notes")}[S.view]||render)();if(S.drawer)renderDrawer();fillNames()}
 
 /* ===== 홈 ===== */
 function vHome(){const n=S.sites.length,open=S.issues.filter(i=>i.status!=="완료"),mon=S.notes.filter(x=>x.month===thisMonth()),bmon=S.bills.filter(x=>x.month===thisMonth());
@@ -89,15 +91,15 @@ function vHome(){const n=S.sites.length,open=S.issues.filter(i=>i.status!=="완�
   const riskColor=r=>r==="높음"?"var(--bad)":r==="보통"?"var(--warn)":"var(--ok)";
   const byRisk=RISKS.map(r=>[r,open.filter(i=>i.risk===r).length]);
   const recent=S.issues.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||"")).slice(0,5);
-  return `<div class="page-h"><div><h1>급여·노무 관리 홈</h1><p>사업장별 급여기초 정보, 청구 특이사항, 급여 특이사항, 노무 문제를 한곳에서 관리합니다.</p></div></div>
+  return `<div class="page-h"><div><h1>급여·노무 관리 홈</h1><p>사업장별 급여기초 정보, 청구 특이사항, 급여 특이사항, 노무관리(노무 문제·산업안전보건)를 한곳에서 관리합니다.</p></div></div>
   <div class="grid g-stats" style="margin-bottom:16px">
     <button class="stat" onclick="WV.go('sites')"><span class="l">관리 사업장</span><span class="v">${n}<small>곳</small></span><span class="n">급여기초 등록 기준</span></button>
     <button class="stat" onclick="WV.go('bills')"><span class="l">${thisMonth().replace("-","년 ")}월 청구 특이사항</span><span class="v">${bmon.length}<small>건</small></span><span class="n">전체 ${S.bills.length}건</span></button>
     <button class="stat" onclick="WV.go('notes')"><span class="l">${thisMonth().replace("-","년 ")}월 급여 특이사항</span><span class="v">${mon.length}<small>건</small></span><span class="n">전체 ${S.notes.length}건</span></button>
-    <button class="stat" onclick="WV.go('issues')"><span class="l">미해결 노무 문제</span><span class="v" style="color:${open.length?"var(--bad)":"inherit"}">${open.length}<small>건</small></span><span class="n">${open.filter(i=>i.risk==="높음").length?`<b style="color:var(--bad)">위험 높음 ${open.filter(i=>i.risk==="높음").length}</b> · `:""}접수 ${open.filter(i=>i.status==="접수").length} · 진행중 ${open.filter(i=>i.status==="진행중").length}</span></button>
+    <button class="stat" onclick="WV.go('issues',{laborTab:'issues'})"><span class="l">미해결 노무 문제</span><span class="v" style="color:${open.length?"var(--bad)":"inherit"}">${open.length}<small>건</small></span><span class="n">${open.filter(i=>i.risk==="높음").length?`<b style="color:var(--bad)">위험 높음 ${open.filter(i=>i.risk==="높음").length}</b> · `:""}접수 ${open.filter(i=>i.status==="접수").length} · 진행중 ${open.filter(i=>i.status==="진행중").length}${S.safety.filter(overdue).length?` · <b style="color:var(--bad)">안전보건 기한 지남 ${S.safety.filter(overdue).length}</b>`:""}</span></button>
   </div>
   <div class="grid g-2">
-    <div class="card"><div class="hd"><h2>최근 노무 문제</h2><button class="btn sm" style="margin-left:auto" onclick="WV.go('issues')">전체 보기</button></div>
+    <div class="card"><div class="hd"><h2>최근 노무 문제</h2><button class="btn sm" style="margin-left:auto" onclick="WV.go('issues',{laborTab:'issues'})">전체 보기</button></div>
       ${recent.length?`<div class="list">${recent.map(i=>issueRow(i)).join("")}</div>`:`<div class="empty"><b>등록된 노무 문제가 없습니다</b>노무 문제 메뉴에서 사업장별 이슈를 입력하면 여기에 최근 5건이 표시됩니다.</div>`}</div>
     <div class="grid">
       <div class="card"><div class="hd"><h2>위험도별 미해결 노무 문제</h2></div><div class="bd">${open.length?bars(byRisk,"",riskColor):`<div class="muted">미해결 노무 문제가 없습니다.</div>`}</div></div>
@@ -152,7 +154,7 @@ function renderDrawer(force){const root=$("#drawer-root");if(!S.drawer){root.inn
   const isNew=S.drawer==="__new";const s=isNew?{id:"__new",f:{}}:S.sites.find(x=>x.id===S.drawer);if(!s){root.innerHTML="";S.drawer=null;return}
   if(!force&&(S.dEdit&&root.querySelector("#siteForm")||(S.dForm||S.dDirty)&&root.querySelector(".drawer")))return; // 입력 중엔 다시 그리지 않음
   const iss=S.issues.filter(i=>i.siteId===s.id),mine=k=>S[k].filter(n=>n.siteId===s.id);
-  const tabs=[["info","기본 정보"],["bills",`청구 특이사항 ${mine("bills").length}`],["notes",`급여 특이사항 ${mine("notes").length}`],["issues",`노무 문제 ${iss.length}`]];
+  const tabs=[["info","기본 정보"],["bills",`청구 특이사항 ${mine("bills").length}`],["notes",`급여 특이사항 ${mine("notes").length}`],["issues",`노무 문제 ${iss.length}`],["safety",`안전보건 ${mine("safety").length}`]];
   let body="";
   if(S.dEdit){body=`<form id="siteForm" class="form">${COLS.map((k,i)=>{if(k==="계약유지상태")return `<div class="f"><span>${esc(lbl(k))}</span><span class="cbox">${CONTRACT_STATES.map(v=>`<label><input type="checkbox" data-k="${esc(k)}" value="${esc(v)}" ${s.f[k]===v?"checked":""}>${esc(v)}</label>`).join("")}</span></div>`;
     if(MULTI[k]){const on=splitMulti(s.f[k]);return `<div class="f"><span>${esc(lbl(k))}</span><span class="cbox">${MULTI[k].map(v=>`<label><input type="checkbox" data-k="${esc(k)}" value="${esc(v)}" ${on.includes(v)?"checked":""}>${esc(v)}</label>`).join("")}</span></div>`}
@@ -164,6 +166,7 @@ function renderDrawer(force){const root=$("#drawer-root");if(!S.drawer){root.inn
     out.unshift(sec("기본",[...BASIC,...["사업장 코드","원가중심점","업무내용"].filter(k=>!used.has(k))]));
     const extra=Object.keys(s.f).filter(k=>!COLS.includes(k)&&!REMOVED.includes(k));if(extra.length)out.push(sec("추가 항목",extra));body=out.join("")}
   else if(S.dTab==="issues")body=drawerIssues(s,iss);
+  else if(S.dTab==="safety")body=drawerSafety(s,mine("safety"));
   else if(REC[S.dTab])body=drawerRec(S.dTab,s,mine(S.dTab));
   root.innerHTML=`<div class="drawer-bg" id="dBg"></div><div class="drawer" role="dialog" aria-modal="true" aria-label="사업장 상세">
     <div class="dh"><div style="min-width:0"><div class="tiny muted mono">${esc(s.f["사업장 코드"]?"코드 "+s.f["사업장 코드"]:"")} ${esc(s.f["소속부서"]||"")}</div><h2>${isNew?"새 사업장":esc(s.f[NAME]||"(이름 없음)")}</h2>
@@ -198,8 +201,7 @@ const rIdx=i=>{const k=RISKS.indexOf(i.risk);return k<0?1:k};
 const issueSort=(a,b)=>(STATUSES.indexOf(a.status)-STATUSES.indexOf(b.status))||(rIdx(a)-rIdx(b))||(b.date||"").localeCompare(a.date||"");
 // 사업장 표 공통: 검색어가 사업장명이나 기록 내용에 있으면 통과
 const textHit=(q,...vals)=>!q||vals.some(v=>String(v||"").toLowerCase().includes(q));
-function vIssues(){const F=S.issueF;return `<div class="page-h"><div><h1>노무 문제</h1><p>사업장별 노무 문제 현황입니다. 사업장을 누르면 그 사업장의 노무 문제를 보고 입력·수정할 수 있습니다.</p></div><div class="act">${xlBtns("issues")}</div></div>
-  <div class="card">
+function issuesCard(){const F=S.issueF;return `<div class="card">
     <div class="bd" style="border-bottom:1px solid var(--line)"><div class="filters f4">
       <label class="f q">전체 검색<input class="i" id="iq" type="search" placeholder="사업장명, 제목, 내용, 담당자" value="${esc(F.q)}"></label>
       <label class="f">유형<select class="i" id="ifType"><option value="">전체</option>${ISSUE_TYPES.map(t=>`<option>${t}</option>`).join("")}</select></label>
@@ -235,6 +237,74 @@ function refIssues(){if(!$("#ibody"))return;const F=S.issueF,q=F.q.trim().toLowe
         <td class="num">${n(list.filter(i=>i.status==="진행중").length)}</td><td class="num">${n(list.filter(i=>i.status==="완료").length)}</td><td class="num">${n(list.length)}</td>
         <td class="mono">${last?esc(last.date||""):""}</td><td class="clip">${last?esc(last.title||""):`<span class="muted">—</span>`}</td></tr>`}).join("")
     :`<tr><td colspan="9"><div class="empty"><b>${S.issues.length?"조건에 맞는 사업장이 없습니다":"아직 등록된 노무 문제가 없습니다"}</b>${S.issues.length?"필터를 줄이거나 초기화해 보세요.":"‘전체 사업장’을 누르고 사업장을 골라 첫 노무 문제를 입력하세요."}</div></td></tr>`}
+
+/* ===== 노무관리 (노무 문제 · 산업안전보건관리) ===== */
+const LABOR_TABS=[["issues","노무 문제"],["safety","산업안전보건관리"]];
+function vLabor(){const t=S.laborTab,open=S.issues.filter(i=>i.status!=="완료").length,late=S.safety.filter(overdue).length;
+  return `<div class="page-h"><div><h1>노무관리</h1><p>사업장별 노무 문제와 산업안전보건 관리 현황입니다. 사업장을 누르면 그 사업장의 기록을 보고 입력·수정할 수 있습니다.</p></div><div class="act">${xlBtns(t)}</div></div>
+  <div class="ptabs" role="tablist" id="ltabs">${LABOR_TABS.map(([k,l])=>`<button role="tab" data-lt="${k}" aria-selected="${t===k}">${l}${k==="issues"&&open?` <span class="pill p-open">미해결 ${open}</span>`:""}${k==="safety"&&late?` <span class="pill p-open">기한 지남 ${late}</span>`:""}</button>`).join("")}</div>
+  ${t==="safety"?safetyCard():issuesCard()}`}
+function bindLabor(){$("#ltabs").onclick=e=>{const b=e.target.closest("[data-lt]");if(!b||b.dataset.lt===S.laborTab)return;S.laborTab=b.dataset.lt;try{localStorage.setItem("wv-labor",S.laborTab)}catch(x){}render()};
+  S.laborTab==="safety"?bindSafety():bindIssues()}
+function refLabor(){if(!$("#ltabs"))return;const open=S.issues.filter(i=>i.status!=="완료").length,late=S.safety.filter(overdue).length;
+  $$("#ltabs [data-lt]").forEach(b=>{const k=b.dataset.lt;b.innerHTML=LABOR_TABS.find(x=>x[0]===k)[1]+(k==="issues"&&open?` <span class="pill p-open">미해결 ${open}</span>`:"")+(k==="safety"&&late?` <span class="pill p-open">기한 지남 ${late}</span>`:"")});
+  S.laborTab==="safety"?refSafety():refIssues()}
+
+/* ----- 산업안전보건관리 ----- */
+const overdue=x=>x.state==="예정"&&(x.date||"")<today();
+const safetyStatePill=x=>overdue(x)?`<span class="pill p-open">기한 지남</span>`:x.state==="완료"?`<span class="pill p-done">완료</span>`:`<span class="pill p-prog">예정</span>`;
+const safetySort=(a,b)=>(overdue(b)-overdue(a))||((a.state==="완료")-(b.state==="완료"))||(a.state==="완료"?(b.date||"").localeCompare(a.date||""):(a.date||"").localeCompare(b.date||""));
+function safetyRow(x,inDrawer){const c=overdue(x)?"var(--bad)":x.state==="완료"?"var(--ok)":"var(--warn)";return `<div class="item"><span class="bar" style="background:${c}"></span><div style="min-width:0">
+  <div class="meta">${safetyStatePill(x)}${inDrawer?"":`<b style="color:var(--ink)">${esc(siteName(x.siteId))}</b>`}<span>${esc(x.type)}</span><span class="mono">${esc(x.date)}</span>${x.people?`<span>대상 ${esc(x.people)}명</span>`:""}${x.owner?`<span>담당 ${esc(x.owner)}</span>`:""}</div>
+  <h3>${esc(x.title||"")}</h3>${x.content?`<p>${esc(x.content)}</p>`:""}</div>
+  ${inDrawer&&db&&!readOnly?`<div class="side"><select class="i" style="width:auto;padding:3px 8px;font-size:12px" data-sst="${esc(x.id)}" aria-label="상태">${SAFETY_STATES.map(s=>`<option ${s===x.state?"selected":""}>${s}</option>`).join("")}</select><button class="btn sm" data-sed="${esc(x.id)}">수정</button><button class="btn sm danger" data-sdel="${esc(x.id)}">삭제</button></div>`:""}</div>`}
+function safetyCard(){const F=S.safetyF;return `<div class="card">
+    <div class="bd" style="border-bottom:1px solid var(--line)"><div class="filters f3">
+      <label class="f q">전체 검색<input class="i" id="aq" type="search" placeholder="사업장명, 제목, 내용, 담당자" value="${esc(F.q)}"></label>
+      <label class="f">구분<select class="i" id="afType"><option value="">전체</option>${SAFETY_TYPES.map(t=>`<option>${t}</option>`).join("")}</select></label>
+      <label class="f">상태<select class="i" id="afState"><option value="">전체</option><option value="late">기한 지남</option>${SAFETY_STATES.map(s=>`<option>${s}</option>`).join("")}</select></label>
+    </div></div>
+    <div class="toolbar"><span class="count" id="acount"></span>
+      <span class="chips" id="aonly"><button class="chip" data-o="1" aria-pressed="${F.only}">기록 있는 사업장</button><button class="chip" data-o="" aria-pressed="${!F.only}">전체 사업장</button></span>
+      <button class="btn sm" id="areset" style="margin-left:auto">필터 초기화</button></div>
+    <div class="tbl-wrap"><table class="sitetbl"><thead><tr><th>사업장명</th><th>소속부서</th><th class="num">기한 지남</th><th class="num">예정</th><th class="num">완료</th><th class="num">산업재해</th><th>다음 일정</th><th>최근 안전보건교육</th></tr></thead><tbody id="abody"></tbody></table></div>
+  </div>`}
+function bindSafety(){const F=S.safetyF;$("#afType").value=F.type;$("#afState").value=F.state;
+  $("#aq").oninput=e=>{F.q=e.target.value;refSafety()};
+  $("#afType").onchange=e=>{F.type=e.target.value;refSafety()};$("#afState").onchange=e=>{F.state=e.target.value;refSafety()};
+  $("#aonly").onclick=e=>{const b=e.target.closest("[data-o]");if(!b)return;F.only=!!b.dataset.o;$$("#aonly .chip").forEach(c=>c.setAttribute("aria-pressed",c===b));refSafety()};
+  $("#areset").onclick=()=>{Object.assign(F,{q:"",type:"",state:""});$("#aq").value=$("#afType").value=$("#afState").value="";refSafety()};
+  $("#abody").onclick=e=>{const tr=e.target.closest("tr[data-id]");if(tr)openDrawer(tr.dataset.id,"safety")};
+  refSafety()}
+function refSafety(){if(!$("#abody"))return;const F=S.safetyF,q=F.q.trim().toLowerCase();
+  const hit=x=>(!F.type||x.type===F.type)&&(!F.state||(F.state==="late"?overdue(x):x.state===F.state));
+  const filtering=F.type||F.state;
+  const rows=sitesSorted().map(s=>{const all=S.safety.filter(x=>x.siteId===s.id&&hit(x));const nameHit=textHit(q,s.f[NAME]);
+      const list=nameHit?all:all.filter(x=>textHit(q,x.title,x.content,x.owner));
+      const next=list.filter(x=>x.state==="예정").sort((a,b)=>(a.date||"").localeCompare(b.date||""))[0];
+      const edu=S.safety.filter(x=>x.siteId===s.id&&x.type==="안전보건교육"&&x.state==="완료").map(x=>x.date||"").sort().pop();
+      return {s,list,nameHit,next,edu}})
+    .filter(r=>(r.nameHit||r.list.length)&&(!(F.only||filtering)||r.list.length));
+  const late=l=>l.filter(overdue).length;
+  rows.sort((a,b)=>late(b.list)-late(a.list)||(a.next?.date||"9999").localeCompare(b.next?.date||"9999")||(a.s.order??999)-(b.s.order??999));
+  const tot=rows.reduce((n,r)=>n+r.list.length,0),totLate=rows.reduce((n,r)=>n+late(r.list),0);
+  $("#acount").innerHTML=`<b>${rows.length}</b>곳 · 기록 <b>${tot}</b>건${totLate?` · 기한 지남 <b style="color:var(--bad)">${totLate}</b>건`:""}`;
+  const n=(v,c)=>v?`<span class="num-b"${c?` style="color:${c}"`:""}>${v}</span>`:`<span class="muted">0</span>`;
+  $("#abody").innerHTML=rows.length?rows.map(({s,list,next,edu})=>`<tr data-id="${esc(s.id)}"><td>${hl(s.f[NAME]||"(이름 없음)",F.q.trim())}</td><td>${esc(s.f["소속부서"]||"")}</td>
+        <td class="num">${n(late(list),"var(--bad)")}</td><td class="num">${n(list.filter(x=>x.state==="예정").length)}</td><td class="num">${n(list.filter(x=>x.state==="완료").length)}</td><td class="num">${n(list.filter(x=>x.type==="산업재해").length,"var(--bad)")}</td>
+        <td class="clip">${next?`<span class="mono"${overdue(next)?' style="color:var(--bad)"':""}>${esc(next.date||"")}</span> ${esc(next.type)}`:`<span class="muted">—</span>`}</td><td class="mono">${edu?esc(edu):`<span class="muted">—</span>`}</td></tr>`).join("")
+    :`<tr><td colspan="8"><div class="empty"><b>${S.safety.length?"조건에 맞는 사업장이 없습니다":"아직 등록된 산업안전보건 기록이 없습니다"}</b>${S.safety.length?"필터를 줄이거나 초기화해 보세요.":"‘전체 사업장’을 누르고 사업장을 골라 교육·검진 일정 등을 입력하세요."}</div></td></tr>`}
+function safetyForm(x){x=x||{date:today(),state:"예정",type:SAFETY_TYPES[0]};return `<form class="form card" style="padding:16px" id="dForm">
+  <h3 class="sec-t" style="margin:0">산업안전보건 ${x.id?"수정":"입력"}</h3>
+  <div class="row2"><label class="f">구분<select class="i" name="type">${SAFETY_TYPES.map(t=>`<option ${t===x.type?"selected":""}>${t}</option>`).join("")}</select></label><label class="f">상태<select class="i" name="state">${SAFETY_STATES.map(s=>`<option ${s===x.state?"selected":""}>${s}</option>`).join("")}</select></label></div>
+  <label class="f">일자 <span class="tiny muted">예정이면 예정일, 완료면 실시일</span><input class="i" type="date" name="date" value="${esc(x.date||"")}" required></label>
+  <label class="f">제목<input class="i" name="title" required placeholder="예) 하반기 정기 안전보건교육" value="${esc(x.title||"")}"></label>
+  <label class="f">내용<textarea class="i" name="content" rows="3" placeholder="교육 시간·방식, 검진 기관, 재해 경위·산재 신청 여부, 점검 결과 등">${esc(x.content||"")}</textarea></label>
+  <div class="row2"><label class="f">대상 인원(선택)<input class="i" type="number" name="people" min="0" step="1" value="${esc(x.people||"")}"></label><label class="f">담당자<input class="i" name="owner" placeholder="예) 배유진" value="${esc(x.owner||"")}"></label></div>
+  <div style="display:flex;gap:8px"><button class="btn pri" type="submit">${x.id?"수정 저장":"등록"}</button><button class="btn" type="button" data-fcancel>취소</button></div></form>`}
+function drawerSafety(s,list){const can=db&&!readOnly,F=S.dForm;
+  return (F&&F.kind==="safety"?safetyForm(F.id&&S.safety.find(x=>x.id===F.id)):can?`<div style="display:flex;justify-content:flex-end"><button class="btn sm pri" data-fnew="safety">안전보건 기록 추가</button></div>`:"")+
+    (list.length?`<div class="card list">${list.slice().sort(safetySort).map(x=>safetyRow(x,true)).join("")}</div>`:`<div class="empty"><b>산업안전보건 기록이 없습니다</b>${can?"‘안전보건 기록 추가’를 눌러 교육·검진 일정 등을 입력하세요.":""}</div>`)}
 
 /* ===== 월별 특이사항 (청구 특이사항 · 급여 특이사항 공통) ===== */
 // 메뉴마다 다른 것만 여기에. 저장 위치(Supabase 테이블 이름)는 키와 같음
@@ -324,17 +394,22 @@ function bindDrawerRecords(root,s){const body=$(".drawer .db",root);if(!body)ret
     const nw=t.closest("[data-fnew]");if(nw){S.dForm={kind:nw.dataset.fnew,id:null};redraw();$("#dForm [name=title]")?.focus();return}
     if(t.closest("[data-fcancel]")){S.dForm=null;redraw();return}
     const ie=t.closest("[data-ied]");if(ie){S.dForm={kind:"issue",id:ie.dataset.ied};redraw();$("#dForm").scrollIntoView({block:"nearest"});return}
+    const se=t.closest("[data-sed]");if(se){S.dForm={kind:"safety",id:se.dataset.sed};redraw();$("#dForm").scrollIntoView({block:"nearest"});return}
+    const sdl=t.closest("[data-sdel]");if(sdl){armDelete(sdl,async()=>{try{await db.doc("safety/"+sdl.dataset.sdel).delete();toast("삭제했습니다");redraw()}catch(x){err(x)}});return}
     const ne=t.closest("[data-red]");if(ne){S.dForm={kind:ne.dataset.k,id:ne.dataset.red};redraw();$("#dForm").scrollIntoView({block:"nearest"});return}
     const idl=t.closest("[data-idel]");if(idl){armDelete(idl,async()=>{try{await db.doc("issues/"+idl.dataset.idel).delete();toast("삭제했습니다");redraw()}catch(x){err(x)}});return}
     const ndl=t.closest("[data-rdel]");if(ndl){armDelete(ndl,async()=>{try{await db.doc(ndl.dataset.k+"/"+ndl.dataset.rdel).delete();toast("삭제했습니다");redraw()}catch(x){err(x)}});return}
     if(t.id==="wnSave"){const d={ordinary:$("#wnOrdinary").value,severance:$("#wnSeverance").value};
       (async()=>{try{await db.doc("wagenotes/"+s.id).set({...d,updatedAt:new Date().toISOString(),by:uid||""});S.dDirty=false;S.wnDraft=null;toast("메모를 저장했습니다");redraw()}catch(x){err(x)}})()}});
-  body.addEventListener("change",async e=>{const st=e.target.closest("[data-st]");if(!st)return;
+  body.addEventListener("change",async e=>{const ss=e.target.closest("[data-sst]");if(ss){try{await db.doc("safety/"+ss.dataset.sst).update({state:ss.value,updatedAt:new Date().toISOString()});toast("‘"+ss.value+"’(으)로 바꿨습니다")}catch(x){err(x)}return}
+    const st=e.target.closest("[data-st]");if(!st)return;
     try{await db.doc("issues/"+st.dataset.st).update({status:st.value,updatedAt:new Date().toISOString()});toast("상태를 ‘"+st.value+"’(으)로 바꿨습니다")}catch(x){err(x)}});
   body.addEventListener("input",e=>{if(e.target.id==="wnOrdinary"||e.target.id==="wnSeverance"){S.dDirty=true;S.wnDraft={ordinary:$("#wnOrdinary").value,severance:$("#wnSeverance").value}}});
   const f=$("#dForm",root);if(f)f.addEventListener("submit",async e=>{e.preventDefault();const v=k=>(f.elements[k].value||"").trim(),now=new Date().toISOString(),F=S.dForm;
     try{if(F.kind==="issue"){const d={siteId:s.id,date:v("date"),type:v("type"),title:v("title"),content:v("content"),status:v("status"),risk:v("risk"),owner:v("owner"),result:v("result"),updatedAt:now};
         if(F.id){const o=S.issues.find(x=>x.id===F.id)||{};await db.doc("issues/"+F.id).set({...strip(o),...d});toast("수정했습니다")}else{await db.collection("issues").add({...d,by:uid||"",createdAt:now});toast("등록했습니다")}}
+      else if(F.kind==="safety"){const d={siteId:s.id,type:v("type"),state:v("state"),date:v("date"),title:v("title"),content:v("content"),people:v("people")?Math.round(+v("people")):"",owner:v("owner"),updatedAt:now};
+        if(F.id){const o=S.safety.find(x=>x.id===F.id)||{};await db.doc("safety/"+F.id).set({...strip(o),...d});toast("수정했습니다")}else{await db.collection("safety").add({...d,by:uid||"",createdAt:now});toast("등록했습니다")}}
       else{const d={siteId:s.id,month:v("month"),type:v("type"),title:v("title"),content:v("content"),amount:+v("amount")||0,repeat:f.elements.repeat.checked,updatedAt:now};
         if(F.id){const o=S[F.kind].find(x=>x.id===F.id)||{};await db.doc(F.kind+"/"+F.id).set({...strip(o),...d});toast("수정했습니다")}else{await db.collection(F.kind).add({...d,by:uid||"",createdAt:now});toast("등록했습니다")}}
       S.dForm=null;redraw()}catch(x){err(x)}})}
@@ -345,11 +420,12 @@ const XL={
   sites:{title:"급여기초",cols:()=>[["ID","id"],...COLS.map(k=>[lbl(k),k])]},
   bills:{title:"청구 특이사항",cols:()=>recCols("bills")},
   notes:{title:"급여 특이사항",cols:()=>recCols("notes")},
-  issues:{title:"노무 문제",cols:()=>[["ID","id"],["사업장명","site"],["발생일","date"],["유형","type"],["제목","title"],["내용","content"],["위험도","risk"],["처리상태","status"],["담당자","owner"],["처리 결과","result"]]}};
+  issues:{title:"노무 문제",cols:()=>[["ID","id"],["사업장명","site"],["발생일","date"],["유형","type"],["제목","title"],["내용","content"],["위험도","risk"],["처리상태","status"],["담당자","owner"],["처리 결과","result"]]},
+  safety:{title:"산업안전보건관리",cols:()=>[["ID","id"],["사업장명","site"],["일자","date"],["구분","type"],["상태","state"],["제목","title"],["내용","content"],["대상 인원","people"],["담당자","owner"]]}};
 const recCols=k=>[["ID","id"],["사업장명","site"],[REC[k].month,"month"],["구분","type"],["제목","title"],["내용","content"],["금액","amount"],["매월 반복","repeat"]];
 function xlRows(k){const cols=XL[k].cols();let list;
   if(k==="sites")list=sitesSorted().map(s=>cols.map(([,f])=>f==="id"?s.id:(s.f[f]||"")));
-  else list=S[k].slice().sort(k==="issues"?((a,b)=>(b.date||"").localeCompare(a.date||"")):byMonth).map(r=>cols.map(([,f])=>f==="id"?r.id:f==="site"?siteName(r.siteId):f==="repeat"?(r.repeat?"Y":""):f==="amount"?(r.amount||""):(r[f]||"")));
+  else list=S[k].slice().sort(k==="issues"||k==="safety"?((a,b)=>(b.date||"").localeCompare(a.date||"")):byMonth).map(r=>cols.map(([,f])=>f==="id"?r.id:f==="site"?siteName(r.siteId):f==="repeat"?(r.repeat?"Y":""):f==="amount"?(r.amount||""):(r[f]||"")));
   return [cols.map(c=>c[0]),...list]}
 async function xlDownload(k){try{await dl.save({filename:`${XL[k].title}_${today()}.xlsx`,data:XLSXLite.write([{name:XL[k].title,rows:xlRows(k)}])})}catch(e){console.error(e);toast("엑셀 파일을 만들지 못했습니다")}}
 async function xlDownloadAll(){try{await dl.save({filename:`급여노무_전체_${today()}.xlsx`,data:XLSXLite.write(Object.keys(XL).map(k=>({name:XL[k].title,rows:xlRows(k)})))})}catch(e){console.error(e);toast("엑셀 파일을 만들지 못했습니다")}}
@@ -365,7 +441,7 @@ function xlPlan(k,rows){const cols=XL[k].cols(),plan={add:[],upd:[],same:0,errs:
   const head=(rows[0]||[]).map(h=>String(h||"").replace(/\s+/g," ").trim());
   const byHead={};cols.forEach(([h,f])=>{byHead[h]=f});if(k==="sites")COLS.forEach(f=>{byHead[f]=f});
   const map=head.map(h=>byHead[h]);head.forEach((h,i)=>{if(h&&!map[i])plan.ignored.push(h)});
-  const need=k==="sites"?[NAME]:k==="issues"?["site","date","title"]:["site","month","title"];
+  const need=k==="sites"?[NAME]:k==="issues"||k==="safety"?["site","date","title"]:["site","month","title"];
   const miss=need.filter(f=>!map.includes(f));if(miss.length){plan.errs.push({row:1,msg:"필수 열이 없습니다: "+miss.map(f=>cols.find(c=>c[1]===f)?.[0]||f).join(", ")});return plan}
   const siteByName={};S.sites.forEach(s=>{const n=(s.f[NAME]||"").trim();if(n&&!siteByName[n])siteByName[n]=s});
   rows.slice(1).forEach((r,ri)=>{const row=ri+2,v={};map.forEach((f,i)=>{if(f)v[f]=String(r[i]??"").trim()});
@@ -386,14 +462,16 @@ function xlPlan(k,rows){const cols=XL[k].cols(),plan={add:[],upd:[],same:0,errs:
     if(!v.title)return err("제목이 비어 있습니다");
     const old=v.id&&S[k].find(x=>x.id===v.id),d={...(old?strip(old):{}),siteId:site.id};
     for(const [key,val] of Object.entries(v)){if(key==="id"||key==="site")continue;let x=val;
-      if(key==="date"){x=xlDate(x);if(!x)return err(`발생일 날짜 형식이 아닙니다: ${val||"(빈 칸)"}`)}
+      if(key==="date"){x=xlDate(x);if(!x)return err(`${cols.find(c=>c[1]==="date")[0]} 날짜 형식이 아닙니다: ${val||"(빈 칸)"}`)}
       else if(key==="month"){x=xlMonth(x);if(!x)return err(`${REC[k].month} 형식이 아닙니다 (예: 2026-10): ${val||"(빈 칸)"}`)}
       else if(key==="amount"){const n=String(x).replace(/[,\s원]/g,"");if(n&&!/^-?\d+(\.\d+)?$/.test(n))return err(`금액이 숫자가 아닙니다: ${val}`);x=n?Math.round(+n):0}
       else if(key==="repeat")x=truthy(x);
+      else if(key==="people"){const n=String(x).replace(/[,\s명]/g,"");if(n&&!/^\d+$/.test(n))return err(`대상 인원이 숫자가 아닙니다: ${val}`);x=n?+n:""}
+      else if(key==="state"){if(x&&!SAFETY_STATES.includes(x))return err(`상태는 ${SAFETY_STATES.join("/")} 중 하나여야 합니다: ${x}`);x=x||SAFETY_STATES[0]}
       else if(key==="risk"){if(x&&!RISKS.includes(x))return err(`위험도는 ${RISKS.join("/")} 중 하나여야 합니다: ${x}`);x=x||"보통"}
       else if(key==="status"){if(x&&!STATUSES.includes(x))return err(`처리상태는 ${STATUSES.join("/")} 중 하나여야 합니다: ${x}`);x=x||STATUSES[0]}
       if(x===""&&!(key in d))continue;d[key]=x}
-    if(k==="issues"){d.risk=d.risk||"보통";d.status=d.status||STATUSES[0];d.type=d.type||ISSUE_TYPES[0]}else{d.type=d.type||REC[k].types[0];d.amount=d.amount||0;d.repeat=!!d.repeat}
+    if(k==="issues"){d.risk=d.risk||"보통";d.status=d.status||STATUSES[0];d.type=d.type||ISSUE_TYPES[0]}else if(k==="safety"){d.state=d.state||SAFETY_STATES[0];d.type=d.type||SAFETY_TYPES[0]}else{d.type=d.type||REC[k].types[0];d.amount=d.amount||0;d.repeat=!!d.repeat}
     if(old&&JSON.stringify(d)===JSON.stringify(strip(old))){plan.same++;return}
     (old?plan.upd:plan.add).push({id:old?old.id:null,name:`${site.f[NAME]} · ${d.title}`,data:d})});
   return plan}
@@ -443,6 +521,7 @@ async function boot(){
   render();
   sub("sites",a=>{S.sites=a.map(x=>({...x,f:x.f||{}}));applyFixes()});
   sub("issues",a=>S.issues=a);
+  sub("safety",a=>S.safety=a);
   sub("bills",a=>S.bills=a);
   sub("notes",a=>S.notes=a);
   sub("wagenotes",a=>{const m={};a.forEach(x=>m[x.id]=x);S.wagenotes=m});
