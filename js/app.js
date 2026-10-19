@@ -89,12 +89,12 @@ function vHome(){const n=S.sites.length,open=S.issues.filter(i=>i.status!=="완�
   const riskColor=r=>r==="높음"?"var(--bad)":r==="보통"?"var(--warn)":"var(--ok)";
   const byRisk=RISKS.map(r=>[r,open.filter(i=>i.risk===r).length]);
   const recent=S.issues.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||"")).slice(0,5);
-  return `<div class="page-h"><div><h1>급여·노무 관리 홈</h1><p>사업장별 급여기초 정보, 청구 특이사항, 노무 문제, 급여 특이사항을 한곳에서 관리합니다.</p></div></div>
+  return `<div class="page-h"><div><h1>급여·노무 관리 홈</h1><p>사업장별 급여기초 정보, 청구 특이사항, 급여 특이사항, 노무 문제를 한곳에서 관리합니다.</p></div></div>
   <div class="grid g-stats" style="margin-bottom:16px">
     <button class="stat" onclick="WV.go('sites')"><span class="l">관리 사업장</span><span class="v">${n}<small>곳</small></span><span class="n">급여기초 등록 기준</span></button>
     <button class="stat" onclick="WV.go('bills')"><span class="l">${thisMonth().replace("-","년 ")}월 청구 특이사항</span><span class="v">${bmon.length}<small>건</small></span><span class="n">전체 ${S.bills.length}건</span></button>
-    <button class="stat" onclick="WV.go('issues')"><span class="l">미해결 노무 문제</span><span class="v" style="color:${open.length?"var(--bad)":"inherit"}">${open.length}<small>건</small></span><span class="n">${open.filter(i=>i.risk==="높음").length?`<b style="color:var(--bad)">위험 높음 ${open.filter(i=>i.risk==="높음").length}</b> · `:""}접수 ${open.filter(i=>i.status==="접수").length} · 진행중 ${open.filter(i=>i.status==="진행중").length}</span></button>
     <button class="stat" onclick="WV.go('notes')"><span class="l">${thisMonth().replace("-","년 ")}월 급여 특이사항</span><span class="v">${mon.length}<small>건</small></span><span class="n">전체 ${S.notes.length}건</span></button>
+    <button class="stat" onclick="WV.go('issues')"><span class="l">미해결 노무 문제</span><span class="v" style="color:${open.length?"var(--bad)":"inherit"}">${open.length}<small>건</small></span><span class="n">${open.filter(i=>i.risk==="높음").length?`<b style="color:var(--bad)">위험 높음 ${open.filter(i=>i.risk==="높음").length}</b> · `:""}접수 ${open.filter(i=>i.status==="접수").length} · 진행중 ${open.filter(i=>i.status==="진행중").length}</span></button>
   </div>
   <div class="grid g-2">
     <div class="card"><div class="hd"><h2>최근 노무 문제</h2><button class="btn sm" style="margin-left:auto" onclick="WV.go('issues')">전체 보기</button></div>
@@ -157,7 +157,7 @@ function renderDrawer(force){const root=$("#drawer-root");if(!S.drawer){root.inn
   const isNew=S.drawer==="__new";const s=isNew?{id:"__new",f:{}}:S.sites.find(x=>x.id===S.drawer);if(!s){root.innerHTML="";S.drawer=null;return}
   if(!force&&(S.dEdit&&root.querySelector("#siteForm")||(S.dForm||S.dDirty)&&root.querySelector(".drawer")))return; // 입력 중엔 다시 그리지 않음
   const iss=S.issues.filter(i=>i.siteId===s.id),mine=k=>S[k].filter(n=>n.siteId===s.id);
-  const tabs=[["info","기본 정보"],["bills",`청구 특이사항 ${mine("bills").length}`],["issues",`노무 문제 ${iss.length}`],["notes",`급여 특이사항 ${mine("notes").length}`]];
+  const tabs=[["info","기본 정보"],["bills",`청구 특이사항 ${mine("bills").length}`],["notes",`급여 특이사항 ${mine("notes").length}`],["issues",`노무 문제 ${iss.length}`]];
   let body="";
   if(S.dEdit){body=`<form id="siteForm" class="form">${COLS.map((k,i)=>{if(k==="계약유지상태")return `<div class="f"><span>${esc(lbl(k))}</span><span class="cbox">${CONTRACT_STATES.map(v=>`<label><input type="checkbox" data-k="${esc(k)}" value="${esc(v)}" ${s.f[k]===v?"checked":""}>${esc(v)}</label>`).join("")}</span></div>`;
     if(MULTI[k]){const on=splitMulti(s.f[k]);return `<div class="f"><span>${esc(lbl(k))}</span><span class="cbox">${MULTI[k].map(v=>`<label><input type="checkbox" data-k="${esc(k)}" value="${esc(v)}" ${on.includes(v)?"checked":""}>${esc(v)}</label>`).join("")}</span></div>`}
