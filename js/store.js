@@ -9,11 +9,11 @@
 (function () {
   "use strict";
   var KEY = "wv-payroll-db-v1";
-  var COLS = ["sites", "issues", "notes", "bills", "wages", "wagenotes"];
+  var COLS = ["sites", "issues", "safety", "notes", "bills", "wages", "wagenotes"];
   var listeners = {};
   var data;
 
-  function empty() { return { sites: {}, issues: {}, notes: {}, bills: {}, wages: {}, wagenotes: {} }; }
+  function empty() { return { sites: {}, issues: {}, safety: {}, notes: {}, bills: {}, wages: {}, wagenotes: {} }; }
   function seeded() {
     var d = empty();
     (window.SEED_SITES || []).forEach(function (s) { d.sites[s.id] = JSON.parse(JSON.stringify(s.data)); });
