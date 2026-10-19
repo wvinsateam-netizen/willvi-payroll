@@ -19,7 +19,7 @@ const bizNo=v=>{const d=String(v||"").replace(/\D/g,"").slice(0,10);return d.len
 const MULTI={"근로자 계약형태":["도급직","파견직","계약직","기타"],"근로자 근무형태":["주40시간","단시간","초단기","2교대","3교대","감단직","일용직"]};
 const splitMulti=v=>String(v||"").split(",").map(x=>x.trim()).filter(Boolean);
 const GROUPS={
-  "기본":["원가중심점","소속부서","사업부담당자","파견/도급구분","업무내용","급여일","경영지원본부 인사담당자"],
+  "기본":["소속부서","사업부담당자","파견/도급구분","최초계약일","업무내용","급여일","경영지원본부 인사담당자"],
   "업무담당자":["소속부서","사업부담당자","사업부담당자 연락처","CRM 전화응대 담당자","전화 응대 연락처","급여/총무 담당자","급여 총무 연락처","경영지원본부 인사담당자"],
   "계약·청구":["파견/도급구분","계약형태 (도급, I/H, F/O, 파견)","업무형태 (I/B,O/B,파견 등)","청구형태 (인원, 콜, 업무도급, 성과유지 등)","근로자 계약형태","근로자 근무형태","월청구분 당사입금일","사업장 주소지(실근무지)","산재개시번호"],
   "임금":["급여일","급여산정 시작일","급여산정 종료일","퇴직금 적립방식","퇴직금적립방식 변경사항 (발생대상 사업장만 작성)","연차수당 적립방식","퇴직연금DC사업장 근로계약 필수 작성시기"],
@@ -140,7 +140,7 @@ function refSites(){if(!$("#sbody"))return;
   $("#scount").innerHTML=`<b>${rows.length}</b> / ${S.sites.length}곳 ${active?`· 조건 ${active}개 적용`:""}`;
   const arrow=k=>S.siteF.sort===k?(S.siteF.dir>0?" ▲":" ▼"):"";
   $("#shead").innerHTML=`<tr>${[NAME,...cols].map(k=>`<th data-k="${esc(k)}" class="${S.siteF.sort===k?"sorted":""}">${esc(lbl(k))}${arrow(k)}</th>`).join("")}</tr>`;
-  const q=S.siteF.q.trim();const mono=k=>/코드|연락처|급여일|산정|번호|등록일|계약시작일|순번/.test(k);
+  const q=S.siteF.q.trim();const mono=k=>/코드|연락처|급여일|산정|번호|계약일|계약시작일|순번/.test(k);
   $("#sbody").innerHTML=rows.length?rows.map(s=>`<tr data-id="${esc(s.id)}"><td>${hl(s.f[NAME]||"(이름 없음)",q)}</td>${cols.map(k=>`<td class="${mono(k)?"mono":""}">${hl(s.f[k]||"",q)}</td>`).join("")}</tr>`).join("")
     :`<tr><td colspan="${cols.length+1}"><div class="empty"><b>${S.sites.length?"조건에 맞는 사업장이 없습니다":"사업장 정보가 아직 없습니다"}</b>${S.sites.length?"필터를 줄이거나 초기화해 보세요.":"‘사업장 추가’로 첫 사업장을 등록하세요."}</div></td></tr>`}
 function sitesCsv(rows){const q=v=>`"${String(v??"").replace(/"/g,'""')}"`;
