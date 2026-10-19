@@ -17,7 +17,7 @@
 willvi-payroll/
 ├─ index.html              화면 뼈대 (메뉴, 레이아웃)
 ├─ css/style.css           디자인 (색상은 맨 위 :root 에서 한 번에 바꿀 수 있음)
-├─ js/app.js               화면 동작 (홈, 급여기초, 노무 문제, 급여 특이사항)
+├─ js/app.js               화면 동작 (홈, 급여기초, 청구 특이사항, 노무 문제, 급여 특이사항)
 ├─ js/config.js            Supabase 설정 안내 (실제 값은 config.local.js, GitHub에 안 올라감)
 ├─ js/store.js             저장 기능 (브라우저 localStorage)
 ├─ js/store-supabase.js    저장 기능 (Supabase 공용 저장소, 공용 계정 로그인)
@@ -98,6 +98,7 @@ python tools/excel_to_seed.py "급여기초.xlsx"
 | 처리 상태 | `STATUSES` |
 | 노무 문제 위험도 | `RISKS` |
 | 급여 특이사항 구분 | `NOTE_TYPES` |
+| 청구 특이사항 구분 | `BILL_TYPES` |
 
 ## 팀이 함께 쓰려면
 

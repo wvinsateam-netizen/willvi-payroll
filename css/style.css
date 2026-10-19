@@ -47,7 +47,7 @@ main{min-width:0;padding-block:24px 48px;padding-left:28px;padding-right:max(28p
 .card>.hd .sub{color:var(--muted);font-size:12px}
 .card>.bd{padding:16px}
 .grid{display:grid;gap:16px;grid-template-columns:minmax(0,1fr)}
-.g-stats{grid-template-columns:repeat(3,minmax(0,1fr))}
+.g-stats{grid-template-columns:repeat(4,minmax(0,1fr))}
 .g-2{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
 .g-form{grid-template-columns:minmax(0,380px) minmax(0,1fr);align-items:start}
 .stat{padding:14px 16px;display:flex;flex-direction:column;gap:4px;cursor:pointer;text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow)}
