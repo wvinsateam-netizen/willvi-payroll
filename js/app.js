@@ -42,7 +42,7 @@ const DATA_FIXES=[
   ["s07","경영지원본부 인사담당자","강미리","주예린"],["s08","경영지원본부 인사담당자","강미리","주예린"]];
 
 /* ---------- 상태 ---------- */
-const S={view:"home",sites:[],issues:[],safety:[],notes:[],bills:[],wagenotes:{},loaded:{sites:false,issues:false,safety:false,notes:false,bills:false,wagenotes:false},laborF:{q:"",issue:"",safety:"",only:false},
+const S={view:"home",sites:[],issues:[],safety:[],notes:[],bills:[],wagenotes:{},loaded:{sites:false,issues:false,safety:false,notes:false,bills:false,wagenotes:false},laborF:{q:"",issue:"",safety:"",only:false},cState:"계약",
   siteF:{q:"",group:"기본",sort:null,dir:1},siteSel:{},recF:{notes:{q:"",month:"",type:"",only:false},bills:{q:"",month:"",type:"",only:false}},
   drawer:null,dTab:"info",dEdit:false,dForm:null,dDirty:false,wnDraft:null,bmDraft:null};
 let db=null,user=null,uid=null,dl=null,readOnly=false;
@@ -72,8 +72,18 @@ const who=id=>id?`<span data-uid="${esc(id)}">${esc(names[id]||"작성자")}</sp
 /* ---------- 내비 ---------- */
 $("#nav").addEventListener("click",e=>{const b=e.target.closest("button[data-v]");if(!b)return;go(b.dataset.v)});
 // 메뉴를 열 때마다 처음 상태로: 청구·급여 특이사항, 노무관리는 전체 사업장, 급여기초는 기본 탭
+// 계약유지상태 구분 (급여기초·청구·급여 특이사항·노무관리 공통). 비어 있으면 '계약'으로 봄
+const CS_TABS=[["계약","계약"],["종료","종료"],["","전체"]];
+const cstate=s=>s.f["계약유지상태"]==="종료"?"종료":"계약";
+const inState=s=>!S.cState||cstate(s)===S.cState;
+const sitesIn=()=>sitesSorted().filter(inState);
+const csCount=v=>v?S.sites.filter(s=>cstate(s)===v).length:S.sites.length;
+const csTabs=()=>`<div class="cstabs" role="tablist" aria-label="계약유지상태">${CS_TABS.map(([v,l])=>`<button role="tab" data-cs="${v}" aria-selected="${S.cState===v}">${l} <span class="n">${csCount(v)}</span></button>`).join("")}</div>`;
+function updCs(){$$(".cstabs [data-cs]").forEach(b=>{b.setAttribute("aria-selected",S.cState===b.dataset.cs);b.querySelector(".n").textContent=csCount(b.dataset.cs)})}
+document.addEventListener("click",e=>{const b=e.target.closest(".cstabs [data-cs]");if(!b)return;S.cState=b.dataset.cs;updCs();
+  ({sites:refSites,bills:()=>refRec("bills"),notes:()=>refRec("notes"),issues:refLabor}[S.view]||(()=>{}))()});
 const ALL_FIRST={bills:()=>S.recF.bills,notes:()=>S.recF.notes,issues:()=>S.laborF};
-function go(v,opt){S.view=v;if(ALL_FIRST[v])ALL_FIRST[v]().only=false;if(v==="sites")S.siteF.group="기본";try{localStorage.setItem("wv-view",v)}catch(e){}if(opt)Object.assign(S,opt);render();window.scrollTo(0,0)}
+function go(v,opt){S.view=v;if(ALL_FIRST[v])ALL_FIRST[v]().only=false;if(v==="sites")S.siteF.group="기본";if(ALL_FIRST[v]||v==="sites")S.cState="계약";try{localStorage.setItem("wv-view",v)}catch(e){}if(opt)Object.assign(S,opt);render();window.scrollTo(0,0)}
 function counts(){$("#c-sites").textContent=S.sites.length;$("#c-issues").textContent=S.issues.filter(i=>i.status!=="완료").length+S.safety.filter(overdue).length;
   $("#c-notes").textContent=S.notes.filter(n=>n.month===thisMonth()).length;$("#c-bills").textContent=S.bills.filter(n=>n.month===thisMonth()).length;
   $$("#nav button").forEach(b=>b.setAttribute("aria-current",b.dataset.v===S.view?"page":"false"))}
@@ -112,6 +122,7 @@ function vHome(){const n=S.sites.length,open=S.issues.filter(i=>i.status!=="완�
 /* ===== 급여기초 ===== */
 function vSites(){return `<div class="page-h"><div><h1>급여기초</h1><p>사업장별 급여·계약·담당자 정보입니다. 조건을 조합해 필터링하고, 행을 누르면 상세 정보와 해당 사업장의 노무 문제·특이사항을 함께 볼 수 있습니다.</p></div>
   <div class="act">${xlBtns("sites")}<button class="btn pri" id="addSite" ${!db||readOnly?"disabled":""}>사업장 추가</button></div></div>
+  ${csTabs()}
   <div class="card">
     <div class="bd" style="border-bottom:1px solid var(--line)"><div class="filters">
       <label class="f q">전체 검색<input class="i" id="sq" type="search" placeholder="사업장명, 담당자, 주소, 특이사항 등" value="${esc(S.siteF.q)}"></label>
@@ -121,7 +132,7 @@ function vSites(){return `<div class="page-h"><div><h1>급여기초</h1><p>사�
       <button class="btn sm" id="sreset" style="margin-left:auto">필터 초기화</button></div>
     <div class="tbl-wrap"><table class="sitetbl"><thead id="shead"></thead><tbody id="sbody"></tbody></table></div>
   </div>`}
-function siteFiltered(){const q=S.siteF.q.trim().toLowerCase();return sitesSorted().filter(s=>{
+function siteFiltered(){const q=S.siteF.q.trim().toLowerCase();return sitesIn().filter(s=>{
   for(const [k] of FILTERS){const v=S.siteSel[k];if(v&&((s.f[k]||"미기재").trim()!==v))return false}
   if(q&&!Object.values(s.f).some(v=>String(v).toLowerCase().includes(q)))return false;return true})}
 function bindSites(){$("#sq").addEventListener("input",e=>{S.siteF.q=e.target.value;refSites()});
@@ -138,7 +149,7 @@ function refSites(){if(!$("#sbody"))return;
   let rows=siteFiltered();const cols=GROUPS[S.siteF.group];
   if(S.siteF.sort){const k=S.siteF.sort,d=S.siteF.dir;rows.sort((a,b)=>String(a.f[k]||"").localeCompare(String(b.f[k]||""),"ko",{numeric:true})*d)}
   const active=Object.values(S.siteSel).filter(Boolean).length+(S.siteF.q?1:0);
-  $("#scount").innerHTML=`<b>${rows.length}</b> / ${S.sites.length}곳 ${active?`· 조건 ${active}개 적용`:""}`;
+  updCs();$("#scount").innerHTML=`<b>${rows.length}</b> / ${sitesIn().length}곳 ${active?`· 조건 ${active}개 적용`:""}`;
   const arrow=k=>S.siteF.sort===k?(S.siteF.dir>0?" ▲":" ▼"):"";
   $("#shead").innerHTML=`<tr>${[NAME,...cols].map(k=>`<th data-k="${esc(k)}" class="${S.siteF.sort===k?"sorted":""}">${esc(lbl(k))}${arrow(k)}</th>`).join("")}</tr>`;
   const q=S.siteF.q.trim();const mono=k=>/코드|연락처|급여일|산정|번호|계약일|예정일|계약시작일|순번/.test(k);
@@ -206,6 +217,7 @@ const textHit=(q,...vals)=>!q||vals.some(v=>String(v||"").toLowerCase().includes
 /* ===== 노무관리 (노무 문제 · 산업안전보건관리) ===== */
 // 첫 화면은 사업장 하나에 노무 문제·산업안전보건 요약을 함께 보여 줌
 function vLabor(){const F=S.laborF;return `<div class="page-h"><div><h1>노무관리</h1><p>사업장별 노무 문제와 산업안전보건 관리 현황입니다. 사업장을 누르면 그 사업장의 노무 문제·안전보건 기록을 보고 입력·수정할 수 있습니다.</p></div><div class="act">${xlBtns("labor")}</div></div>
+  ${csTabs()}
   <div class="card">
     <div class="bd" style="border-bottom:1px solid var(--line)"><div class="filters f3">
       <label class="f q">전체 검색<input class="i" id="lq" type="search" placeholder="사업장명, 제목, 내용, 담당자" value="${esc(F.q)}"></label>
@@ -228,7 +240,7 @@ function bindLabor(){const F=S.laborF;$("#lfIssue").value=F.issue;$("#lfSafety")
   refLabor()}
 function refLabor(){if(!$("#lbody"))return;const F=S.laborF,q=F.q.trim().toLowerCase();
   const iHit=i=>!F.issue||(F.issue==="open"?i.status!=="완료":i.status===F.issue),sHit=x=>!F.safety||(F.safety==="late"?overdue(x):x.state===F.safety);
-  const rows=sitesSorted().map(s=>{const nameHit=textHit(q,s.f[NAME]);
+  updCs();const rows=sitesIn().map(s=>{const nameHit=textHit(q,s.f[NAME]);
       let iss=S.issues.filter(i=>i.siteId===s.id&&iHit(i)),saf=S.safety.filter(x=>x.siteId===s.id&&sHit(x));
       if(!nameHit){iss=iss.filter(i=>textHit(q,i.title,i.content,i.owner,i.result));saf=saf.filter(x=>textHit(q,x.title,x.content,x.owner))}
       return {s,iss,saf,nameHit}})
@@ -281,6 +293,7 @@ function recRow(k,n,inDrawer){return `<div class="item"><span class="bar" style=
   <h3>${esc(n.title||"")}</h3>${n.content?`<p>${esc(n.content)}</p>`:""}</div>
   ${inDrawer&&db&&!readOnly?`<div class="side"><button class="btn sm" data-red="${esc(n.id)}" data-k="${k}">수정</button><button class="btn sm danger" data-rdel="${esc(n.id)}" data-k="${k}">삭제</button></div>`:""}</div>`}
 function vRec(k){const R=REC[k],F=S.recF[k],p=R.p;return `<div class="page-h"><div><h1>${R.title}</h1><p>${R.desc}</p></div><div class="act">${xlBtns(k)}</div></div>
+  ${csTabs()}
   <div class="card">
     <div class="bd" style="border-bottom:1px solid var(--line)"><div class="filters f3">
       <label class="f q">전체 검색<input class="i" id="${p}q" type="search" placeholder="사업장명, 제목, 내용${k==="notes"?", 메모":""}" value="${esc(F.q)}"></label>
@@ -303,7 +316,7 @@ function bindRec(k){const F=S.recF[k],p=REC[k].p,ref=()=>refRec(k);$(`#${p}fType
   ref()}
 function refRec(k){const R=REC[k],F=S.recF[k],p=R.p,body=$(`#${p}body`);if(!body)return;const q=F.q.trim().toLowerCase(),all=S[k];
   $(`#${p}MonthH`).textContent=F.month?`${F.month.replace("-",".")} 특이사항`:"특이사항";
-  const rows=sitesSorted().map(s=>{const mine=all.filter(n=>n.siteId===s.id&&(!F.type||n.type===F.type));const nameHit=textHit(q,s.f[NAME]);
+  updCs();const rows=sitesIn().map(s=>{const mine=all.filter(n=>n.siteId===s.id&&(!F.type||n.type===F.type));const nameHit=textHit(q,s.f[NAME]);
       const list=nameHit?mine:mine.filter(n=>textHit(q,n.title,n.content));const inM=list.filter(n=>inMonth(n,F.month));
       // 급여 특이사항은 통상임금·퇴직금 메모도 표에 보여 줌
       const w=k==="notes"?memoOf(s.id):{},wn=!!(w.ordinary||w.severance),wnHit=wn&&!F.type&&textHit(q,w.ordinary,w.severance);
