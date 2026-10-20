@@ -47,7 +47,7 @@ const S={view:"home",sites:[],issues:[],safety:[],notes:[],bills:[],wagenotes:{}
   drawer:null,dTab:"info",dEdit:false,dForm:null,dDirty:false,wnDraft:null,bmDraft:null};
 let db=null,user=null,uid=null,dl=null,readOnly=false;
 const names={};
-try{const v=localStorage.getItem("wv-view");if(v)S.view=v;const g=localStorage.getItem("wv-group");if(g&&GROUPS[g])S.siteF.group=g;}catch(e){}
+try{const v=localStorage.getItem("wv-view");if(v)S.view=v;localStorage.removeItem("wv-group");}catch(e){}
 
 /* ---------- 유틸 ---------- */
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
@@ -71,9 +71,9 @@ const who=id=>id?`<span data-uid="${esc(id)}">${esc(names[id]||"작성자")}</sp
 
 /* ---------- 내비 ---------- */
 $("#nav").addEventListener("click",e=>{const b=e.target.closest("button[data-v]");if(!b)return;go(b.dataset.v)});
-// 청구·급여 특이사항, 노무관리는 메뉴를 열 때마다 전체 사업장부터 보여 줌
+// 메뉴를 열 때마다 처음 상태로: 청구·급여 특이사항, 노무관리는 전체 사업장, 급여기초는 기본 탭
 const ALL_FIRST={bills:()=>S.recF.bills,notes:()=>S.recF.notes,issues:()=>S.laborF};
-function go(v,opt){S.view=v;if(ALL_FIRST[v])ALL_FIRST[v]().only=false;try{localStorage.setItem("wv-view",v)}catch(e){}if(opt)Object.assign(S,opt);render();window.scrollTo(0,0)}
+function go(v,opt){S.view=v;if(ALL_FIRST[v])ALL_FIRST[v]().only=false;if(v==="sites")S.siteF.group="기본";try{localStorage.setItem("wv-view",v)}catch(e){}if(opt)Object.assign(S,opt);render();window.scrollTo(0,0)}
 function counts(){$("#c-sites").textContent=S.sites.length;$("#c-issues").textContent=S.issues.filter(i=>i.status!=="완료").length+S.safety.filter(overdue).length;
   $("#c-notes").textContent=S.notes.filter(n=>n.month===thisMonth()).length;$("#c-bills").textContent=S.bills.filter(n=>n.month===thisMonth()).length;
   $$("#nav button").forEach(b=>b.setAttribute("aria-current",b.dataset.v===S.view?"page":"false"))}
@@ -126,7 +126,7 @@ function siteFiltered(){const q=S.siteF.q.trim().toLowerCase();return sitesSorte
   if(q&&!Object.values(s.f).some(v=>String(v).toLowerCase().includes(q)))return false;return true})}
 function bindSites(){$("#sq").addEventListener("input",e=>{S.siteF.q=e.target.value;refSites()});
   FILTERS.forEach((_,i)=>$("#sf"+i).addEventListener("change",e=>{S.siteSel[e.target.dataset.k]=e.target.value;refSites()}));
-  $("#groups").addEventListener("click",e=>{const b=e.target.closest("[data-g]");if(!b)return;S.siteF.group=b.dataset.g;try{localStorage.setItem("wv-group",b.dataset.g)}catch(x){}$$("#groups .chip").forEach(c=>c.setAttribute("aria-pressed",c===b));refSites()});
+  $("#groups").addEventListener("click",e=>{const b=e.target.closest("[data-g]");if(!b)return;S.siteF.group=b.dataset.g;$$("#groups .chip").forEach(c=>c.setAttribute("aria-pressed",c===b));refSites()});
   $("#sreset").addEventListener("click",()=>{S.siteF.q="";S.siteSel={};$("#sq").value="";refSites()});
   $("#shead").addEventListener("click",e=>{const th=e.target.closest("th[data-k]");if(!th)return;const k=th.dataset.k;if(S.siteF.sort===k)S.siteF.dir*=-1;else{S.siteF.sort=k;S.siteF.dir=1}refSites()});
   $("#sbody").addEventListener("click",e=>{const tr=e.target.closest("tr[data-id]");if(tr)openDrawer(tr.dataset.id)});
