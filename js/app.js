@@ -71,7 +71,9 @@ const who=id=>id?`<span data-uid="${esc(id)}">${esc(names[id]||"작성자")}</sp
 
 /* ---------- 내비 ---------- */
 $("#nav").addEventListener("click",e=>{const b=e.target.closest("button[data-v]");if(!b)return;go(b.dataset.v)});
-function go(v,opt){S.view=v;try{localStorage.setItem("wv-view",v)}catch(e){}if(opt)Object.assign(S,opt);render();window.scrollTo(0,0)}
+// 청구·급여 특이사항, 노무관리는 메뉴를 열 때마다 전체 사업장부터 보여 줌
+const ALL_FIRST={bills:()=>S.recF.bills,notes:()=>S.recF.notes,issues:()=>S.laborF};
+function go(v,opt){S.view=v;if(ALL_FIRST[v])ALL_FIRST[v]().only=false;try{localStorage.setItem("wv-view",v)}catch(e){}if(opt)Object.assign(S,opt);render();window.scrollTo(0,0)}
 function counts(){$("#c-sites").textContent=S.sites.length;$("#c-issues").textContent=S.issues.filter(i=>i.status!=="완료").length+S.safety.filter(overdue).length;
   $("#c-notes").textContent=S.notes.filter(n=>n.month===thisMonth()).length;$("#c-bills").textContent=S.bills.filter(n=>n.month===thisMonth()).length;
   $$("#nav button").forEach(b=>b.setAttribute("aria-current",b.dataset.v===S.view?"page":"false"))}
