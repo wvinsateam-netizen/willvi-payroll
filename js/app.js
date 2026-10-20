@@ -268,10 +268,10 @@ function drawerSafety(s,list){const can=db&&!readOnly,F=S.dForm;
 // 메뉴마다 다른 것만 여기에. 저장 위치(Supabase 테이블 이름)는 키와 같음
 const REC={
   bills:{p:"b",title:"청구 특이사항",types:BILL_TYPES,month:"청구월",
-    desc:"사업장별 청구 특이사항 현황입니다. 사업장을 누르면 그 사업장의 월별 청구 특이사항을 보고 입력할 수 있습니다.",
+    desc:"사업장별 청구 특이사항 현황입니다. 사업장을 누르면 그 사업장의 청구방식과 청구 특이사항을 보고 입력할 수 있습니다.",
     ph:["예) 10월 인원 증원분 추가 청구","청구 대상, 산정 기준, 고객사 협의 내용 등"]},
   notes:{p:"n",title:"급여 특이사항",types:NOTE_TYPES,month:"귀속월",
-    desc:"사업장별 급여 특이사항 현황입니다. 사업장을 누르면 월별 특이사항과 통상임금·퇴직금 메모를 함께 보고 입력할 수 있습니다.",
+    desc:"사업장별 급여 특이사항 현황입니다. 사업장을 누르면 급여정산, 급여 특이사항, 통상임금·퇴직금 메모를 함께 보고 입력할 수 있습니다.",
     ph:["예) 교육생 식대 회입","대상자, 산정기준, 청구 반영 여부 등"]}};
 const byMonth=(a,b)=>(b.month||"").localeCompare(a.month||"");
 function recRow(k,n,inDrawer){return `<div class="item"><span class="bar" style="background:var(--accent)"></span><div style="min-width:0">
@@ -337,17 +337,25 @@ function recForm(k,n){const R=REC[k];n=n||{month:S.recF[k].month||thisMonth(),ty
 function drawerIssues(s,iss){const can=db&&!readOnly,F=S.dForm;
   return (F&&F.kind==="issue"?issueForm(F.id&&S.issues.find(x=>x.id===F.id)):can?`<div style="display:flex;justify-content:flex-end"><button class="btn sm pri" data-fnew="issue">노무 문제 추가</button></div>`:"")+
     (iss.length?`<div class="card list">${iss.slice().sort(issueSort).map(i=>issueRow(i,true)).join("")}</div>`:`<div class="empty"><b>등록된 노무 문제가 없습니다</b>${can?"‘노무 문제 추가’를 눌러 입력하세요.":""}</div>`)}
-// 사업장 메모(wagenotes 문서): 통상임금·퇴직금 메모와 청구방식을 사업장별로 함께 저장
+// 사업장 메모(wagenotes 문서): 통상임금·퇴직금 메모, 청구방식, 급여정산을 사업장별로 함께 저장
 const memoOf=id=>{const w={...(S.wagenotes[id]||{})};delete w.id;return w};
-function billingBox(s,can){const w=memoOf(s.id),txt=S.dDirty&&S.bmDraft!=null?S.bmDraft:(w.billing||"");
-  const info=[["청구형태 (인원, 콜, 업무도급, 성과유지 등)","청구형태"],["청구일","청구일"],["월청구분 당사입금일","월청구분 당사입금일"]].filter(([k])=>s.f[k]);
-  return `<section id="bmBox"><div style="display:flex;align-items:center;gap:10px"><h3 class="sec-t" style="margin:0">청구방식</h3><span class="tiny muted">${w.billingAt?`마지막 저장 ${esc(w.billingAt.slice(0,10))}`:""}</span>${can?`<button class="btn sm pri" id="bmSave" style="margin-left:auto">청구방식 저장</button>`:""}</div>
-    ${info.length?`<dl class="kv" style="margin-top:6px">${info.map(([k,l])=>`<dt>${esc(l)}</dt><dd>${esc(s.f[k])}</dd>`).join("")}</dl>`:""}
-    <label class="f" style="margin-top:8px">청구 방식 설명<span class="tiny muted">단가 구조(시급·월정액·인당 관리비), 청구 기준, 세금계산서 발행 시기 등</span><textarea class="i" id="bmText" rows="4" ${can?"":"disabled"} placeholder="예) 인원 × 월 단가 + 인당 관리비 5만원, 매월 말일 마감 후 익월 5일 세금계산서 발행">${esc(txt)}</textarea></label></section>`}
+// 특이사항 탭 맨 위 칸: 급여기초의 관련 값 + 사업장별 설명
+const MEMO_BOX={
+  bills:{field:"billing",title:"청구방식",label:"청구 방식 설명",hint:"단가 구조(시급·월정액·인당 관리비), 청구 기준, 세금계산서 발행 시기 등",
+    ph:"예) 인원 × 월 단가 + 인당 관리비 5만원, 매월 말일 마감 후 익월 5일 세금계산서 발행",
+    info:[["청구형태 (인원, 콜, 업무도급, 성과유지 등)","청구형태"],["청구일","청구일"],["월청구분 당사입금일","월청구분 당사입금일"]]},
+  notes:{field:"payroll",title:"급여정산",label:"급여 정산 방식 설명",hint:"근태 마감일, 급여 산정 기준, 수당·공제 정산, 소급·퇴직 정산 처리 방식 등",
+    ph:"예) 전월 1일~말일 근태를 5일 마감, 매월 10일 지급. 연장수당은 실적 확인 후 익월 정산",
+    info:[["급여일","급여일"],["급여산정 시작일","급여산정 시작일"],["급여산정 종료일","급여산정 종료일"],["퇴직금 적립방식","퇴직금 적립방식"],["연차수당 적립방식","연차수당 적립방식"]]}};
+function memoBox(k,s,can){const M=MEMO_BOX[k],w=memoOf(s.id),txt=S.dDirty&&S.bmDraft!=null?S.bmDraft:(w[M.field]||""),at=w[M.field+"At"];
+  const info=M.info.filter(([f])=>s.f[f]);
+  return `<section id="mbBox"><div style="display:flex;align-items:center;gap:10px"><h3 class="sec-t" style="margin:0">${M.title}</h3><span class="tiny muted">${at?`마지막 저장 ${esc(at.slice(0,10))}`:""}</span>${can?`<button class="btn sm pri" id="mbSave" data-k="${k}" style="margin-left:auto">${M.title} 저장</button>`:""}</div>
+    ${info.length?`<dl class="kv" style="margin-top:6px">${info.map(([f,l])=>`<dt>${esc(l)}</dt><dd>${esc(s.f[f])}</dd>`).join("")}</dl>`:""}
+    <label class="f" style="margin-top:8px">${M.label}<span class="tiny muted">${M.hint}</span><textarea class="i" id="mbText" rows="4" ${can?"":"disabled"} placeholder="${esc(M.ph)}">${esc(txt)}</textarea></label></section>`}
 function drawerRec(k,s,list){const R=REC[k],can=db&&!readOnly,F=S.dForm;
-  let h=(k==="bills"?billingBox(s,can):"")+`<section><h3 class="sec-t">${k==="bills"?R.title:"월별 "+R.title}</h3><div style="display:flex;flex-direction:column;gap:10px">`+
+  let h=memoBox(k,s,can)+`<section><h3 class="sec-t">${R.title}</h3><div style="display:flex;flex-direction:column;gap:10px">`+
     (F&&F.kind===k?recForm(k,F.id&&S[k].find(x=>x.id===F.id)):can?`<div style="display:flex;justify-content:flex-end"><button class="btn sm pri" data-fnew="${k}">특이사항 추가</button></div>`:"")+
-    (list.length?`<div class="card list">${list.slice().sort(byMonth).map(n=>recRow(k,n,true)).join("")}</div>`:`<div class="empty"><b>${k==="bills"?"":"월별 "}${R.title}이 없습니다</b>${can?"‘특이사항 추가’를 눌러 입력하세요.":""}</div>`)+`</div></section>`;
+    (list.length?`<div class="card list">${list.slice().sort(byMonth).map(n=>recRow(k,n,true)).join("")}</div>`:`<div class="empty"><b>${R.title}이 없습니다</b>${can?"‘특이사항 추가’를 눌러 입력하세요.":""}</div>`)+`</div></section>`;
   if(k!=="notes")return h;
   const w=S.wagenotes[s.id]||{},d=S.dDirty&&S.wnDraft?S.wnDraft:{ordinary:w.ordinary||"",severance:w.severance||""};
   return h+`<section id="wnBox"><div style="display:flex;align-items:center;gap:10px"><h3 class="sec-t" style="margin:0">통상임금·퇴직금 메모</h3><span class="tiny muted">${w.updatedAt?`마지막 저장 ${esc(w.updatedAt.slice(0,10))}`:""}</span>${can?`<button class="btn sm pri" id="wnSave" style="margin-left:auto">메모 저장</button>`:""}</div>
@@ -366,13 +374,13 @@ function bindDrawerRecords(root,s){const body=$(".drawer .db",root);if(!body)ret
     const ndl=t.closest("[data-rdel]");if(ndl){armDelete(ndl,async()=>{try{await db.doc(ndl.dataset.k+"/"+ndl.dataset.rdel).delete();toast("삭제했습니다");redraw()}catch(x){err(x)}});return}
     if(t.id==="wnSave"){const d={ordinary:$("#wnOrdinary").value,severance:$("#wnSeverance").value};
       (async()=>{try{await db.doc("wagenotes/"+s.id).set({...memoOf(s.id),...d,updatedAt:new Date().toISOString(),by:uid||""});S.dDirty=false;S.wnDraft=null;toast("메모를 저장했습니다");redraw()}catch(x){err(x)}})()}
-    if(t.id==="bmSave"){const billing=$("#bmText").value;
-      (async()=>{try{await db.doc("wagenotes/"+s.id).set({...memoOf(s.id),billing,billingAt:new Date().toISOString(),by:uid||""});S.dDirty=false;S.bmDraft=null;toast("청구방식을 저장했습니다");redraw()}catch(x){err(x)}})()}});
+    if(t.id==="mbSave"){const M=MEMO_BOX[t.dataset.k],v=$("#mbText").value;
+      (async()=>{try{await db.doc("wagenotes/"+s.id).set({...memoOf(s.id),[M.field]:v,[M.field+"At"]:new Date().toISOString(),by:uid||""});S.dDirty=false;S.bmDraft=null;toast(M.title+"을 저장했습니다");redraw()}catch(x){err(x)}})()}});
   body.addEventListener("change",async e=>{const ss=e.target.closest("[data-sst]");if(ss){try{await db.doc("safety/"+ss.dataset.sst).update({state:ss.value,updatedAt:new Date().toISOString()});toast("‘"+ss.value+"’(으)로 바꿨습니다")}catch(x){err(x)}return}
     const st=e.target.closest("[data-st]");if(!st)return;
     try{await db.doc("issues/"+st.dataset.st).update({status:st.value,updatedAt:new Date().toISOString()});toast("상태를 ‘"+st.value+"’(으)로 바꿨습니다")}catch(x){err(x)}});
   body.addEventListener("input",e=>{if(e.target.id==="wnOrdinary"||e.target.id==="wnSeverance"){S.dDirty=true;S.wnDraft={ordinary:$("#wnOrdinary").value,severance:$("#wnSeverance").value}}
-    if(e.target.id==="bmText"){S.dDirty=true;S.bmDraft=e.target.value}});
+    if(e.target.id==="mbText"){S.dDirty=true;S.bmDraft=e.target.value}});
   const f=$("#dForm",root);if(f)f.addEventListener("submit",async e=>{e.preventDefault();const v=k=>(f.elements[k].value||"").trim(),now=new Date().toISOString(),F=S.dForm;
     try{if(F.kind==="issue"){const d={siteId:s.id,date:v("date"),type:v("type"),title:v("title"),content:v("content"),status:v("status"),risk:v("risk"),owner:v("owner"),result:v("result"),updatedAt:now};
         if(F.id){const o=S.issues.find(x=>x.id===F.id)||{};await db.doc("issues/"+F.id).set({...strip(o),...d});toast("수정했습니다")}else{await db.collection("issues").add({...d,by:uid||"",createdAt:now});toast("등록했습니다")}}
