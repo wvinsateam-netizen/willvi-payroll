@@ -175,3 +175,10 @@ details.legal>*:not(summary){margin:10px 12px}
 .legal-t td:first-child{font-weight:600;min-width:120px}
 .legal-t td:nth-child(2){color:var(--muted);min-width:96px;width:22%}
 details.legal ul{padding-left:18px;font-size:12.5px;display:flex;flex-direction:column;gap:4px}
+/* 계약유지상태 구분 */
+.cstabs{display:inline-flex;gap:2px;padding:3px;margin-bottom:12px;background:var(--sunk);border-radius:8px}
+.cstabs button{all:unset;cursor:pointer;padding:6px 14px;border-radius:6px;font-size:13px;font-weight:600;color:var(--muted);display:flex;align-items:center;gap:6px}
+.cstabs button .n{font-size:11.5px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--muted)}
+.cstabs button[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.cstabs button[aria-selected="true"] .n{color:var(--brand)}
+.cstabs button:focus-visible{outline:2px solid var(--brand);outline-offset:1px}
