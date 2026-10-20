@@ -355,6 +355,25 @@ function memoBox(k,s,can){const M=MEMO_BOX[k],w=memoOf(s.id),txt=S.dDirty&&S.bmD
   return `<section id="mbBox"><div style="display:flex;align-items:center;gap:10px"><h3 class="sec-t" style="margin:0">${M.title}</h3><span class="tiny muted">${at?`마지막 저장 ${esc(at.slice(0,10))}`:""}</span>${can?`<button class="btn sm pri" id="mbSave" data-k="${k}" style="margin-left:auto">${M.title} 저장</button>`:""}</div>
     ${info.length?`<dl class="kv" style="margin-top:6px">${info.map(([f,l])=>`<dt>${esc(l)}</dt><dd>${esc(s.f[f])}</dd>`).join("")}</dl>`:""}
     <label class="f" style="margin-top:8px">${M.label}<span class="tiny muted">${M.hint}</span><textarea class="i" id="mbText" rows="4" ${can?"":"disabled"} placeholder="${esc(M.ph)}">${esc(txt)}</textarea></label></section>`}
+// 통상임금·퇴직금 관련 법적 책임 참고표 (2026년 10월 기준 요약 — 법 개정 시 여기만 고치면 됨)
+const LEGAL_REF_DATE="2026년 10월";
+const LEGAL_REF=[
+  ["임금 체불 (정기 지급일에 전액 미지급)","근로기준법 제43조","5년 이하 징역 또는 5천만원 이하 벌금 (2026.10.8. 이후 체불분, 그 전은 3년·3천만원). 반의사불벌, 단 체불사업주 명단공개 기간 중 재체불은 예외"],
+  ["연장·야간·휴일 가산수당 미지급 (통상임금을 낮게 잡아 적게 준 경우 포함)","근로기준법 제56조","위 임금 체불과 같은 형사처벌"],
+  ["퇴직 후 14일 내 임금·금품 미청산","근로기준법 제36조","위 임금 체불과 같은 형사처벌 (당사자 합의로 기일 연장 가능)"],
+  ["퇴직금 14일 내 미지급 (평균임금 항목 누락으로 적게 준 경우 포함)","근로자퇴직급여 보장법 제9조","5년 이하 징역 또는 5천만원 이하 벌금 (2026.9.18. 이후 체불분, 그 전은 3년·3천만원). 반의사불벌"],
+  ["지연이자","근로기준법 제37조, 퇴직급여법 제9조","퇴직자: 14일이 지난 다음 날부터 연 20%. 재직자: 2025.10.23. 이후 지급기일이 온 임금부터 지급일 다음 날부터 연 20%"],
+  ["징벌적 손해배상","근로기준법 (2025.10.23. 시행)","명백한 고의 또는 3개월 이상 장기 체불 등은 근로자가 법원에 체불액의 최대 3배 청구 가능"],
+  ["상습체불사업주","근로기준법 (2025.10.23. 시행)","직전 1년간 1명에게 3개월분 이상 체불, 또는 5회 이상·총 3천만원 이상 체불 시 신용제재·정부지원 제한 등"],
+  ["임금명세서 미교부·기재 누락","근로기준법 제48조 제2항","500만원 이하 과태료"],
+  ["근로조건 서면 명시·교부 위반","근로기준법 제17조","500만원 이하 벌금"],
+  ["소멸시효","근로기준법 제49조, 퇴직급여법 제10조","임금·퇴직금 모두 3년"]];
+const LEGAL_NOTES=["통상임금: 대법원 2024.12.19. 전원합의체 판결로 '고정성' 요건이 빠졌습니다. 재직조건·근무일수 조건이 붙은 정기상여금도 통상임금이 될 수 있습니다. 판결일 이후 산정분부터 적용됩니다 (해당·병행 사건은 예외).",
+  "평균임금이 통상임금보다 적으면 통상임금을 평균임금으로 봅니다 (근로기준법 제2조 제2항). 퇴직금 산정에 영향을 줍니다."];
+function legalRef(){return `<details class="legal" ${S.legalOpen?"open":""}><summary>근로기준법·퇴직급여법상 과태료·법적 책임 보기</summary>
+  <table class="legal-t"><thead><tr><th>상황</th><th>근거</th><th>책임·제재</th></tr></thead><tbody>${LEGAL_REF.map(([a,b,c])=>`<tr><td>${esc(a)}</td><td>${esc(b)}</td><td>${esc(c)}</td></tr>`).join("")}</tbody></table>
+  <ul>${LEGAL_NOTES.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>
+  <p class="tiny muted">${LEGAL_REF_DATE} 기준 참고용 요약입니다. 실제 적용 전에는 <a href="https://www.law.go.kr" target="_blank" rel="noopener">국가법령정보센터</a> 원문이나 노무사 확인이 필요합니다.</p></details>`}
 function drawerRec(k,s,list){const R=REC[k],can=db&&!readOnly,F=S.dForm;
   let h=`<section><h3 class="sec-t">${R.title}</h3><div style="display:flex;flex-direction:column;gap:10px">`+
     (F&&F.kind===k?recForm(k,F.id&&S[k].find(x=>x.id===F.id)):can?`<div style="display:flex;justify-content:flex-end"><button class="btn sm pri" data-fnew="${k}">특이사항 추가</button></div>`:"")+
@@ -362,9 +381,11 @@ function drawerRec(k,s,list){const R=REC[k],can=db&&!readOnly,F=S.dForm;
   if(k!=="notes")return memoBox(k,s,can)+h;
   const w=S.wagenotes[s.id]||{},d=S.dDirty&&S.wnDraft?S.wnDraft:{ordinary:w.ordinary||"",severance:w.severance||""};
   return memoBox(k,s,can)+`<section id="wnBox"><div style="display:flex;align-items:center;gap:10px"><h3 class="sec-t" style="margin:0">통상임금·퇴직금 메모</h3><span class="tiny muted">${w.updatedAt?`마지막 저장 ${esc(w.updatedAt.slice(0,10))}`:""}</span>${can?`<button class="btn sm pri" id="wnSave" style="margin-left:auto">메모 저장</button>`:""}</div>
+      ${legalRef()}
       <label class="f" style="margin-top:8px">통상임금 항목이나 포함하지 않는 임금항목<span class="tiny muted">임금체불에 대한 문제 발생이 있는 급여항목</span><textarea class="i" id="wnOrdinary" rows="3" ${can?"":"disabled"} placeholder="사업장에서 통상임금에 포함/제외한 임금항목과 그 근거를 적어 주세요">${esc(d.ordinary)}</textarea></label>
       <label class="f" style="margin-top:8px">퇴직금 평균임금(통상임금)이나 포함하지 않는 임금항목<span class="tiny muted">임금체불에 대한 문제 발생이 있는 급여항목</span><textarea class="i" id="wnSeverance" rows="3" ${can?"":"disabled"} placeholder="퇴직금 평균임금 산정 시 포함/제외한 임금항목과 그 근거를 적어 주세요">${esc(d.severance)}</textarea></label></section>`+h}
 function bindDrawerRecords(root,s){const body=$(".drawer .db",root);if(!body)return;
+  body.addEventListener("toggle",e=>{if(e.target.matches("details.legal"))S.legalOpen=e.target.open},true);
   const redraw=()=>renderDrawer(true);
   body.addEventListener("click",e=>{const t=e.target;
     const nw=t.closest("[data-fnew]");if(nw){S.dForm={kind:nw.dataset.fnew,id:null};redraw();$("#dForm [name=title]")?.focus();return}

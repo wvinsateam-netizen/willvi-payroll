@@ -164,3 +164,14 @@ dl.kv dd{margin:0;padding:6px 0;border-bottom:1px dashed var(--line);white-space
 .modal h2{margin:0;font-size:17px}
 .modal ul{margin:4px 0 0;padding-left:18px;font-size:13px;display:flex;flex-direction:column;gap:2px}
 .modal p{margin:0}
+/* 법적 책임 참고표 */
+details.legal{margin-top:8px;border:1px solid var(--line);border-radius:6px;background:var(--sunk)}
+details.legal summary{cursor:pointer;padding:8px 12px;font-size:13px;font-weight:600;color:var(--brand)}
+details.legal[open] summary{border-bottom:1px solid var(--line)}
+details.legal>*:not(summary){margin:10px 12px}
+.legal-t{font-size:12.5px;background:var(--surface);border:1px solid var(--line);border-radius:6px;overflow:hidden;width:calc(100% - 24px)}
+.legal-t th{position:static;cursor:default}
+.legal-t td{max-width:none;vertical-align:top}
+.legal-t td:first-child{font-weight:600;min-width:120px}
+.legal-t td:nth-child(2){color:var(--muted);min-width:96px;width:22%}
+details.legal ul{padding-left:18px;font-size:12.5px;display:flex;flex-direction:column;gap:4px}
