@@ -44,7 +44,7 @@ const DATA_FIXES=[
 /* ---------- 상태 ---------- */
 const S={view:"home",sites:[],issues:[],safety:[],notes:[],bills:[],wagenotes:{},loaded:{sites:false,issues:false,safety:false,notes:false,bills:false,wagenotes:false},laborF:{q:"",issue:"",safety:"",only:true},
   siteF:{q:"",group:"기본",sort:null,dir:1},siteSel:{},recF:{notes:{q:"",month:"",type:"",only:true},bills:{q:"",month:"",type:"",only:true}},
-  drawer:null,dTab:"info",dEdit:false,dForm:null,dDirty:false,wnDraft:null};
+  drawer:null,dTab:"info",dEdit:false,dForm:null,dDirty:false,wnDraft:null,bmDraft:null};
 let db=null,user=null,uid=null,dl=null,readOnly=false;
 const names={};
 try{const v=localStorage.getItem("wv-view");if(v)S.view=v;const g=localStorage.getItem("wv-group");if(g&&GROUPS[g])S.siteF.group=g;}catch(e){}
@@ -144,8 +144,8 @@ function refSites(){if(!$("#sbody"))return;
     :`<tr><td colspan="${cols.length+1}"><div class="empty"><b>${S.sites.length?"조건에 맞는 사업장이 없습니다":"사업장 정보가 아직 없습니다"}</b>${S.sites.length?"필터를 줄이거나 초기화해 보세요.":"‘사업장 추가’로 첫 사업장을 등록하세요."}</div></td></tr>`}
 
 /* ===== 사업장 상세 드로어 ===== */
-function openDrawer(id,tab){Object.assign(S,{drawer:id,dTab:tab||"info",dEdit:false,dForm:null,dDirty:false,wnDraft:null,dWarn:false});renderDrawer(true)}
-function closeDrawer(){if(!leaveOk())return;Object.assign(S,{drawer:null,dEdit:false,dForm:null,dDirty:false,wnDraft:null});renderDrawer(true)}
+function openDrawer(id,tab){Object.assign(S,{drawer:id,dTab:tab||"info",dEdit:false,dForm:null,dDirty:false,wnDraft:null,bmDraft:null,dWarn:false});renderDrawer(true)}
+function closeDrawer(){if(!leaveOk())return;Object.assign(S,{drawer:null,dEdit:false,dForm:null,dDirty:false,wnDraft:null,bmDraft:null});renderDrawer(true)}
 // 입력 중인 내용이 있으면 한 번은 막고 알림, 다시 누르면 버리고 진행
 function leaveOk(){if(!(S.dForm||S.dDirty)||S.dWarn){S.dWarn=false;return true}S.dWarn=true;toast("저장하지 않은 입력이 있습니다. 다시 누르면 버리고 이동합니다.");setTimeout(()=>S.dWarn=false,4000);return false}
 function renderDrawer(force){const root=$("#drawer-root");if(!S.drawer){root.innerHTML="";return}
@@ -173,8 +173,8 @@ function renderDrawer(force){const root=$("#drawer-root");if(!S.drawer){root.inn
     ${S.dEdit?"":`<div class="tabs" role="tablist">${tabs.map(([k,l])=>`<button role="tab" data-t="${k}" aria-selected="${S.dTab===k}">${esc(l)}</button>`).join("")}</div>`}
     <div class="db">${body}</div></div>`;
   $("#dBg").onclick=closeDrawer;$("#dClose").onclick=closeDrawer;
-  const ed=$("#dEdit");if(ed)ed.onclick=()=>{if(!leaveOk())return;Object.assign(S,{dEdit:true,dForm:null,dDirty:false,wnDraft:null});renderDrawer(true)};
-  $$(".drawer .tabs button").forEach(b=>b.onclick=()=>{if(b.dataset.t===S.dTab||!leaveOk())return;Object.assign(S,{dTab:b.dataset.t,dForm:null,dDirty:false,wnDraft:null});renderDrawer(true)});
+  const ed=$("#dEdit");if(ed)ed.onclick=()=>{if(!leaveOk())return;Object.assign(S,{dEdit:true,dForm:null,dDirty:false,wnDraft:null,bmDraft:null});renderDrawer(true)};
+  $$(".drawer .tabs button").forEach(b=>b.onclick=()=>{if(b.dataset.t===S.dTab||!leaveOk())return;Object.assign(S,{dTab:b.dataset.t,dForm:null,dDirty:false,wnDraft:null,bmDraft:null});renderDrawer(true)});
   if(!S.dEdit)bindDrawerRecords(root,s);
   const f=$("#siteForm");if(f){f.addEventListener("submit",async e=>{e.preventDefault();const nf={};
       // 화면에 없는 항목(추가 항목·삭제한 항목의 예전 값)은 그대로 보존
@@ -337,10 +337,17 @@ function recForm(k,n){const R=REC[k];n=n||{month:S.recF[k].month||thisMonth(),ty
 function drawerIssues(s,iss){const can=db&&!readOnly,F=S.dForm;
   return (F&&F.kind==="issue"?issueForm(F.id&&S.issues.find(x=>x.id===F.id)):can?`<div style="display:flex;justify-content:flex-end"><button class="btn sm pri" data-fnew="issue">노무 문제 추가</button></div>`:"")+
     (iss.length?`<div class="card list">${iss.slice().sort(issueSort).map(i=>issueRow(i,true)).join("")}</div>`:`<div class="empty"><b>등록된 노무 문제가 없습니다</b>${can?"‘노무 문제 추가’를 눌러 입력하세요.":""}</div>`)}
+// 사업장 메모(wagenotes 문서): 통상임금·퇴직금 메모와 청구방식을 사업장별로 함께 저장
+const memoOf=id=>{const w={...(S.wagenotes[id]||{})};delete w.id;return w};
+function billingBox(s,can){const w=memoOf(s.id),txt=S.dDirty&&S.bmDraft!=null?S.bmDraft:(w.billing||"");
+  const info=[["청구형태 (인원, 콜, 업무도급, 성과유지 등)","청구형태"],["청구일","청구일"],["월청구분 당사입금일","월청구분 당사입금일"]].filter(([k])=>s.f[k]);
+  return `<section id="bmBox"><div style="display:flex;align-items:center;gap:10px"><h3 class="sec-t" style="margin:0">청구방식</h3><span class="tiny muted">${w.billingAt?`마지막 저장 ${esc(w.billingAt.slice(0,10))}`:""}</span>${can?`<button class="btn sm pri" id="bmSave" style="margin-left:auto">청구방식 저장</button>`:""}</div>
+    ${info.length?`<dl class="kv" style="margin-top:6px">${info.map(([k,l])=>`<dt>${esc(l)}</dt><dd>${esc(s.f[k])}</dd>`).join("")}</dl>`:""}
+    <label class="f" style="margin-top:8px">청구 방식 설명<span class="tiny muted">단가 구조(시급·월정액·인당 관리비), 청구 기준, 세금계산서 발행 시기 등</span><textarea class="i" id="bmText" rows="4" ${can?"":"disabled"} placeholder="예) 인원 × 월 단가 + 인당 관리비 5만원, 매월 말일 마감 후 익월 5일 세금계산서 발행">${esc(txt)}</textarea></label></section>`}
 function drawerRec(k,s,list){const R=REC[k],can=db&&!readOnly,F=S.dForm;
-  let h=`<section><h3 class="sec-t">월별 ${R.title}</h3><div style="display:flex;flex-direction:column;gap:10px">`+
+  let h=(k==="bills"?billingBox(s,can):"")+`<section><h3 class="sec-t">${k==="bills"?R.title:"월별 "+R.title}</h3><div style="display:flex;flex-direction:column;gap:10px">`+
     (F&&F.kind===k?recForm(k,F.id&&S[k].find(x=>x.id===F.id)):can?`<div style="display:flex;justify-content:flex-end"><button class="btn sm pri" data-fnew="${k}">특이사항 추가</button></div>`:"")+
-    (list.length?`<div class="card list">${list.slice().sort(byMonth).map(n=>recRow(k,n,true)).join("")}</div>`:`<div class="empty"><b>월별 ${R.title}이 없습니다</b>${can?"‘특이사항 추가’를 눌러 입력하세요.":""}</div>`)+`</div></section>`;
+    (list.length?`<div class="card list">${list.slice().sort(byMonth).map(n=>recRow(k,n,true)).join("")}</div>`:`<div class="empty"><b>${k==="bills"?"":"월별 "}${R.title}이 없습니다</b>${can?"‘특이사항 추가’를 눌러 입력하세요.":""}</div>`)+`</div></section>`;
   if(k!=="notes")return h;
   const w=S.wagenotes[s.id]||{},d=S.dDirty&&S.wnDraft?S.wnDraft:{ordinary:w.ordinary||"",severance:w.severance||""};
   return h+`<section id="wnBox"><div style="display:flex;align-items:center;gap:10px"><h3 class="sec-t" style="margin:0">통상임금·퇴직금 메모</h3><span class="tiny muted">${w.updatedAt?`마지막 저장 ${esc(w.updatedAt.slice(0,10))}`:""}</span>${can?`<button class="btn sm pri" id="wnSave" style="margin-left:auto">메모 저장</button>`:""}</div>
@@ -358,11 +365,14 @@ function bindDrawerRecords(root,s){const body=$(".drawer .db",root);if(!body)ret
     const idl=t.closest("[data-idel]");if(idl){armDelete(idl,async()=>{try{await db.doc("issues/"+idl.dataset.idel).delete();toast("삭제했습니다");redraw()}catch(x){err(x)}});return}
     const ndl=t.closest("[data-rdel]");if(ndl){armDelete(ndl,async()=>{try{await db.doc(ndl.dataset.k+"/"+ndl.dataset.rdel).delete();toast("삭제했습니다");redraw()}catch(x){err(x)}});return}
     if(t.id==="wnSave"){const d={ordinary:$("#wnOrdinary").value,severance:$("#wnSeverance").value};
-      (async()=>{try{await db.doc("wagenotes/"+s.id).set({...d,updatedAt:new Date().toISOString(),by:uid||""});S.dDirty=false;S.wnDraft=null;toast("메모를 저장했습니다");redraw()}catch(x){err(x)}})()}});
+      (async()=>{try{await db.doc("wagenotes/"+s.id).set({...memoOf(s.id),...d,updatedAt:new Date().toISOString(),by:uid||""});S.dDirty=false;S.wnDraft=null;toast("메모를 저장했습니다");redraw()}catch(x){err(x)}})()}
+    if(t.id==="bmSave"){const billing=$("#bmText").value;
+      (async()=>{try{await db.doc("wagenotes/"+s.id).set({...memoOf(s.id),billing,billingAt:new Date().toISOString(),by:uid||""});S.dDirty=false;S.bmDraft=null;toast("청구방식을 저장했습니다");redraw()}catch(x){err(x)}})()}});
   body.addEventListener("change",async e=>{const ss=e.target.closest("[data-sst]");if(ss){try{await db.doc("safety/"+ss.dataset.sst).update({state:ss.value,updatedAt:new Date().toISOString()});toast("‘"+ss.value+"’(으)로 바꿨습니다")}catch(x){err(x)}return}
     const st=e.target.closest("[data-st]");if(!st)return;
     try{await db.doc("issues/"+st.dataset.st).update({status:st.value,updatedAt:new Date().toISOString()});toast("상태를 ‘"+st.value+"’(으)로 바꿨습니다")}catch(x){err(x)}});
-  body.addEventListener("input",e=>{if(e.target.id==="wnOrdinary"||e.target.id==="wnSeverance"){S.dDirty=true;S.wnDraft={ordinary:$("#wnOrdinary").value,severance:$("#wnSeverance").value}}});
+  body.addEventListener("input",e=>{if(e.target.id==="wnOrdinary"||e.target.id==="wnSeverance"){S.dDirty=true;S.wnDraft={ordinary:$("#wnOrdinary").value,severance:$("#wnSeverance").value}}
+    if(e.target.id==="bmText"){S.dDirty=true;S.bmDraft=e.target.value}});
   const f=$("#dForm",root);if(f)f.addEventListener("submit",async e=>{e.preventDefault();const v=k=>(f.elements[k].value||"").trim(),now=new Date().toISOString(),F=S.dForm;
     try{if(F.kind==="issue"){const d={siteId:s.id,date:v("date"),type:v("type"),title:v("title"),content:v("content"),status:v("status"),risk:v("risk"),owner:v("owner"),result:v("result"),updatedAt:now};
         if(F.id){const o=S.issues.find(x=>x.id===F.id)||{};await db.doc("issues/"+F.id).set({...strip(o),...d});toast("수정했습니다")}else{await db.collection("issues").add({...d,by:uid||"",createdAt:now});toast("등록했습니다")}}
