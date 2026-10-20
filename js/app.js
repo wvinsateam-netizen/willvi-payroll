@@ -42,8 +42,8 @@ const DATA_FIXES=[
   ["s07","경영지원본부 인사담당자","강미리","주예린"],["s08","경영지원본부 인사담당자","강미리","주예린"]];
 
 /* ---------- 상태 ---------- */
-const S={view:"home",sites:[],issues:[],safety:[],notes:[],bills:[],wagenotes:{},loaded:{sites:false,issues:false,safety:false,notes:false,bills:false,wagenotes:false},laborF:{q:"",issue:"",safety:"",only:true},
-  siteF:{q:"",group:"기본",sort:null,dir:1},siteSel:{},recF:{notes:{q:"",month:"",type:"",only:true},bills:{q:"",month:"",type:"",only:true}},
+const S={view:"home",sites:[],issues:[],safety:[],notes:[],bills:[],wagenotes:{},loaded:{sites:false,issues:false,safety:false,notes:false,bills:false,wagenotes:false},laborF:{q:"",issue:"",safety:"",only:false},
+  siteF:{q:"",group:"기본",sort:null,dir:1},siteSel:{},recF:{notes:{q:"",month:"",type:"",only:false},bills:{q:"",month:"",type:"",only:false}},
   drawer:null,dTab:"info",dEdit:false,dForm:null,dDirty:false,wnDraft:null,bmDraft:null};
 let db=null,user=null,uid=null,dl=null,readOnly=false;
 const names={};
@@ -211,7 +211,7 @@ function vLabor(){const F=S.laborF;return `<div class="page-h"><div><h1>노무�
       <label class="f">산업안전보건<select class="i" id="lfSafety"><option value="">전체</option><option value="late">기한 지남</option>${SAFETY_STATES.map(s=>`<option>${s}</option>`).join("")}</select></label>
     </div></div>
     <div class="toolbar"><span class="count" id="lcount"></span>
-      <span class="chips" id="lonly"><button class="chip" data-o="1" aria-pressed="${F.only}">기록 있는 사업장</button><button class="chip" data-o="" aria-pressed="${!F.only}">전체 사업장</button></span>
+      <span class="chips" id="lonly"><button class="chip" data-o="" aria-pressed="${!F.only}">전체 사업장</button><button class="chip" data-o="1" aria-pressed="${F.only}">기록 있는 사업장</button></span>
       <button class="btn sm" id="lreset" style="margin-left:auto">필터 초기화</button></div>
     <div class="tbl-wrap"><table class="sitetbl"><thead><tr><th>사업장명</th><th>소속부서</th><th class="num">노무 미해결</th><th class="num">위험 높음</th><th>최근 노무 문제</th><th class="num">안전보건 기한 지남</th><th class="num">안전보건 예정</th><th class="num">산업재해</th><th>다음 안전보건 일정</th></tr></thead><tbody id="lbody"></tbody></table></div>
   </div>`}
@@ -286,7 +286,7 @@ function vRec(k){const R=REC[k],F=S.recF[k],p=R.p;return `<div class="page-h"><d
       <label class="f">구분<select class="i" id="${p}fType"><option value="">전체</option>${R.types.map(t=>`<option>${t}</option>`).join("")}</select></label>
     </div></div>
     <div class="toolbar"><span class="count" id="${p}count"></span>
-      <span class="chips" id="${p}only"><button class="chip" data-o="1" aria-pressed="${F.only}">${k==="notes"?"기록 있는 사업장":"특이사항 있는 사업장"}</button><button class="chip" data-o="" aria-pressed="${!F.only}">전체 사업장</button></span>
+      <span class="chips" id="${p}only"><button class="chip" data-o="" aria-pressed="${!F.only}">전체 사업장</button><button class="chip" data-o="1" aria-pressed="${F.only}">${k==="notes"?"기록 있는 사업장":"특이사항 있는 사업장"}</button></span>
       <button class="btn sm" id="${p}fAll" style="margin-left:auto">전체 기간</button><button class="btn sm" id="${p}reset">필터 초기화</button></div>
     <div class="tbl-wrap"><table class="sitetbl"><thead><tr><th>사업장명</th><th>소속부서</th><th class="num" id="${p}MonthH"></th><th class="num">매월 반복</th><th class="num">전체</th><th>최근 ${R.month}</th><th>최근 특이사항</th>${k==="notes"?"<th>통상임금 메모</th><th>퇴직금 메모</th>":""}</tr></thead><tbody id="${p}body"></tbody></table></div>
   </div>`}
