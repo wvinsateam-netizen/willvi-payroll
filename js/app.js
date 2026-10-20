@@ -271,7 +271,7 @@ const REC={
     desc:"사업장별 청구 특이사항 현황입니다. 사업장을 누르면 그 사업장의 청구방식과 청구 특이사항을 보고 입력할 수 있습니다.",
     ph:["예) 10월 인원 증원분 추가 청구","청구 대상, 산정 기준, 고객사 협의 내용 등"]},
   notes:{p:"n",title:"급여 특이사항",types:NOTE_TYPES,month:"귀속월",
-    desc:"사업장별 급여 특이사항 현황입니다. 사업장을 누르면 급여정산, 급여 특이사항, 통상임금·퇴직금 메모를 함께 보고 입력할 수 있습니다.",
+    desc:"사업장별 급여 특이사항 현황입니다. 사업장을 누르면 급여정산, 통상임금·퇴직금 메모, 급여 특이사항을 함께 보고 입력할 수 있습니다.",
     ph:["예) 교육생 식대 회입","대상자, 산정기준, 청구 반영 여부 등"]}};
 const byMonth=(a,b)=>(b.month||"").localeCompare(a.month||"");
 function recRow(k,n,inDrawer){return `<div class="item"><span class="bar" style="background:var(--accent)"></span><div style="min-width:0">
@@ -281,14 +281,14 @@ function recRow(k,n,inDrawer){return `<div class="item"><span class="bar" style=
 function vRec(k){const R=REC[k],F=S.recF[k],p=R.p;return `<div class="page-h"><div><h1>${R.title}</h1><p>${R.desc}</p></div><div class="act">${xlBtns(k)}</div></div>
   <div class="card">
     <div class="bd" style="border-bottom:1px solid var(--line)"><div class="filters f3">
-      <label class="f q">전체 검색<input class="i" id="${p}q" type="search" placeholder="사업장명, 제목, 내용" value="${esc(F.q)}"></label>
+      <label class="f q">전체 검색<input class="i" id="${p}q" type="search" placeholder="사업장명, 제목, 내용${k==="notes"?", 메모":""}" value="${esc(F.q)}"></label>
       <label class="f">${R.month}<input class="i" type="month" id="${p}fMonth" value="${esc(F.month)}"></label>
       <label class="f">구분<select class="i" id="${p}fType"><option value="">전체</option>${R.types.map(t=>`<option>${t}</option>`).join("")}</select></label>
     </div></div>
     <div class="toolbar"><span class="count" id="${p}count"></span>
-      <span class="chips" id="${p}only"><button class="chip" data-o="1" aria-pressed="${F.only}">특이사항 있는 사업장</button><button class="chip" data-o="" aria-pressed="${!F.only}">전체 사업장</button></span>
+      <span class="chips" id="${p}only"><button class="chip" data-o="1" aria-pressed="${F.only}">${k==="notes"?"기록 있는 사업장":"특이사항 있는 사업장"}</button><button class="chip" data-o="" aria-pressed="${!F.only}">전체 사업장</button></span>
       <button class="btn sm" id="${p}fAll" style="margin-left:auto">전체 기간</button><button class="btn sm" id="${p}reset">필터 초기화</button></div>
-    <div class="tbl-wrap"><table class="sitetbl"><thead><tr><th>사업장명</th><th>소속부서</th><th class="num" id="${p}MonthH"></th><th class="num">매월 반복</th><th class="num">전체</th><th>최근 ${R.month}</th><th>최근 특이사항</th></tr></thead><tbody id="${p}body"></tbody></table></div>
+    <div class="tbl-wrap"><table class="sitetbl"><thead><tr><th>사업장명</th><th>소속부서</th><th class="num" id="${p}MonthH"></th><th class="num">매월 반복</th><th class="num">전체</th><th>최근 ${R.month}</th><th>최근 특이사항</th>${k==="notes"?"<th>통상임금 메모</th><th>퇴직금 메모</th>":""}</tr></thead><tbody id="${p}body"></tbody></table></div>
   </div>`}
 const inMonth=(n,m)=>!m||n.month===m||(n.repeat&&n.month<=m);
 function bindRec(k){const F=S.recF[k],p=REC[k].p,ref=()=>refRec(k);$(`#${p}fType`).value=F.type;
@@ -303,17 +303,20 @@ function refRec(k){const R=REC[k],F=S.recF[k],p=R.p,body=$(`#${p}body`);if(!body
   $(`#${p}MonthH`).textContent=F.month?`${F.month.replace("-",".")} 특이사항`:"특이사항";
   const rows=sitesSorted().map(s=>{const mine=all.filter(n=>n.siteId===s.id&&(!F.type||n.type===F.type));const nameHit=textHit(q,s.f[NAME]);
       const list=nameHit?mine:mine.filter(n=>textHit(q,n.title,n.content));const inM=list.filter(n=>inMonth(n,F.month));
-      return {s,list,inM,hit:nameHit||list.length}})
-    .filter(r=>r.hit&&(F.month||F.type?r.inM.length||!F.only&&!F.type:!F.only||r.list.length));
+      // 급여 특이사항은 통상임금·퇴직금 메모도 표에 보여 줌
+      const w=k==="notes"?memoOf(s.id):{},wn=!!(w.ordinary||w.severance),wnHit=wn&&!F.type&&textHit(q,w.ordinary,w.severance);
+      return {s,list,inM,w,wn,hit:nameHit||list.length||wnHit}})
+    .filter(r=>r.hit&&(F.month||F.type?r.inM.length||!F.only&&!F.type:!F.only||r.list.length||r.wn));
   rows.sort((a,b)=>b.inM.length-a.inM.length||(b.list.slice().sort(byMonth)[0]?.month||"").localeCompare(a.list.slice().sort(byMonth)[0]?.month||"")||(a.s.order??999)-(b.s.order??999));
   const tot=rows.reduce((n,r)=>n+r.inM.length,0);
   $(`#${p}count`).innerHTML=`<b>${rows.length}</b>곳 · ${F.month?F.month.replace("-",".")+" ":""}특이사항 <b>${tot}</b>건`;
   const n=v=>v?`<span class="num-b">${v}</span>`:`<span class="muted">0</span>`;
-  body.innerHTML=rows.length?rows.map(({s,list,inM})=>{const last=list.slice().sort(byMonth)[0];
+  const memo=v=>v?`<span title="${esc(v)}">${esc(v)}</span>`:`<span class="muted">—</span>`;
+  body.innerHTML=rows.length?rows.map(({s,list,inM,w})=>{const last=list.slice().sort(byMonth)[0];
       return `<tr data-id="${esc(s.id)}"><td>${hl(s.f[NAME]||"(이름 없음)",F.q.trim())}</td><td>${esc(s.f["소속부서"]||"")}</td>
         <td class="num">${n(inM.length)}</td><td class="num">${n(list.filter(x=>x.repeat).length)}</td><td class="num">${n(list.length)}</td>
-        <td class="mono">${last?esc(last.month||""):""}</td><td class="clip">${last?esc(last.title||""):`<span class="muted">—</span>`}</td></tr>`}).join("")
-    :`<tr><td colspan="7"><div class="empty"><b>${all.length?"조건에 맞는 사업장이 없습니다":`아직 입력된 ${R.title}이 없습니다`}</b>${all.length?`${R.month}이나 필터를 바꿔 보세요.`:"‘전체 사업장’을 누르고 사업장을 골라 첫 특이사항을 입력하세요."}</div></td></tr>`}
+        <td class="mono">${last?esc(last.month||""):""}</td><td class="clip">${last?esc(last.title||""):`<span class="muted">—</span>`}</td>${k==="notes"?`<td class="clip">${memo(w.ordinary)}</td><td class="clip">${memo(w.severance)}</td>`:""}</tr>`}).join("")
+    :`<tr><td colspan="${k==="notes"?9:7}"><div class="empty"><b>${all.length?"조건에 맞는 사업장이 없습니다":`아직 입력된 ${R.title}이 없습니다`}</b>${all.length?`${R.month}이나 필터를 바꿔 보세요.`:"‘전체 사업장’을 누르고 사업장을 골라 첫 특이사항을 입력하세요."}</div></td></tr>`}
 
 /* ===== 사업장 상세 안의 노무 문제·급여 특이사항 입력 ===== */
 function strip(o){const c={...o};delete c.id;return c}
@@ -353,14 +356,14 @@ function memoBox(k,s,can){const M=MEMO_BOX[k],w=memoOf(s.id),txt=S.dDirty&&S.bmD
     ${info.length?`<dl class="kv" style="margin-top:6px">${info.map(([f,l])=>`<dt>${esc(l)}</dt><dd>${esc(s.f[f])}</dd>`).join("")}</dl>`:""}
     <label class="f" style="margin-top:8px">${M.label}<span class="tiny muted">${M.hint}</span><textarea class="i" id="mbText" rows="4" ${can?"":"disabled"} placeholder="${esc(M.ph)}">${esc(txt)}</textarea></label></section>`}
 function drawerRec(k,s,list){const R=REC[k],can=db&&!readOnly,F=S.dForm;
-  let h=memoBox(k,s,can)+`<section><h3 class="sec-t">${R.title}</h3><div style="display:flex;flex-direction:column;gap:10px">`+
+  let h=`<section><h3 class="sec-t">${R.title}</h3><div style="display:flex;flex-direction:column;gap:10px">`+
     (F&&F.kind===k?recForm(k,F.id&&S[k].find(x=>x.id===F.id)):can?`<div style="display:flex;justify-content:flex-end"><button class="btn sm pri" data-fnew="${k}">특이사항 추가</button></div>`:"")+
     (list.length?`<div class="card list">${list.slice().sort(byMonth).map(n=>recRow(k,n,true)).join("")}</div>`:`<div class="empty"><b>${R.title}이 없습니다</b>${can?"‘특이사항 추가’를 눌러 입력하세요.":""}</div>`)+`</div></section>`;
-  if(k!=="notes")return h;
+  if(k!=="notes")return memoBox(k,s,can)+h;
   const w=S.wagenotes[s.id]||{},d=S.dDirty&&S.wnDraft?S.wnDraft:{ordinary:w.ordinary||"",severance:w.severance||""};
-  return h+`<section id="wnBox"><div style="display:flex;align-items:center;gap:10px"><h3 class="sec-t" style="margin:0">통상임금·퇴직금 메모</h3><span class="tiny muted">${w.updatedAt?`마지막 저장 ${esc(w.updatedAt.slice(0,10))}`:""}</span>${can?`<button class="btn sm pri" id="wnSave" style="margin-left:auto">메모 저장</button>`:""}</div>
+  return memoBox(k,s,can)+`<section id="wnBox"><div style="display:flex;align-items:center;gap:10px"><h3 class="sec-t" style="margin:0">통상임금·퇴직금 메모</h3><span class="tiny muted">${w.updatedAt?`마지막 저장 ${esc(w.updatedAt.slice(0,10))}`:""}</span>${can?`<button class="btn sm pri" id="wnSave" style="margin-left:auto">메모 저장</button>`:""}</div>
       <label class="f" style="margin-top:8px">통상임금 항목이나 포함하지 않는 임금항목<span class="tiny muted">임금체불에 대한 문제 발생이 있는 급여항목</span><textarea class="i" id="wnOrdinary" rows="3" ${can?"":"disabled"} placeholder="사업장에서 통상임금에 포함/제외한 임금항목과 그 근거를 적어 주세요">${esc(d.ordinary)}</textarea></label>
-      <label class="f" style="margin-top:8px">퇴직금 평균임금(통상임금)이나 포함하지 않는 임금항목<span class="tiny muted">임금체불에 대한 문제 발생이 있는 급여항목</span><textarea class="i" id="wnSeverance" rows="3" ${can?"":"disabled"} placeholder="퇴직금 평균임금 산정 시 포함/제외한 임금항목과 그 근거를 적어 주세요">${esc(d.severance)}</textarea></label></section>`}
+      <label class="f" style="margin-top:8px">퇴직금 평균임금(통상임금)이나 포함하지 않는 임금항목<span class="tiny muted">임금체불에 대한 문제 발생이 있는 급여항목</span><textarea class="i" id="wnSeverance" rows="3" ${can?"":"disabled"} placeholder="퇴직금 평균임금 산정 시 포함/제외한 임금항목과 그 근거를 적어 주세요">${esc(d.severance)}</textarea></label></section>`+h}
 function bindDrawerRecords(root,s){const body=$(".drawer .db",root);if(!body)return;
   const redraw=()=>renderDrawer(true);
   body.addEventListener("click",e=>{const t=e.target;
