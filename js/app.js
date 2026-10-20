@@ -1,16 +1,16 @@
 (function(){
 "use strict";
 /* ---------- 상수 ---------- */
-const COLS=["사업장명","사업자번호","대표자명","계약유지상태","최초계약일","최근재계약일","업무담당자명","업무담당자 연락처","사업장 코드","원가중심점","경영지원본부 인사담당자","소속부서","사업부담당자","사업부담당자 연락처","CRM 전화응대 담당자","전화 응대 연락처","급여/총무 담당자","급여 총무 연락처","급여일","급여산정 시작일","급여산정 종료일","파견/도급구분","사업장 주소지(실근무지)","업무내용","계약형태 (도급, I/H, F/O, 파견)","업무형태 (I/B,O/B,파견 등)","청구형태 (인원, 콜, 업무도급, 성과유지 등)","근로자 계약형태","근로자 근무형태","퇴직금 적립방식","퇴직금적립방식 변경사항 (발생대상 사업장만 작성)","연차수당 적립방식","신원보증보험","월청구분 당사입금일","퇴직연금DC사업장 근로계약 필수 작성시기","기타","특이사항","사업장명 변경 전(2024-12)","생일축하금 (금액기재)","설,추석 선물 여부","근로자의날 선물 여부","산재개시번호"];
+const COLS=["사업장명","사업자번호","대표자명","계약유지상태","최초계약일","갱신예정일","업무담당자명","업무담당자 연락처","사업장 코드","원가중심점","경영지원본부 인사담당자","소속부서","사업부담당자","사업부담당자 연락처","CRM 전화응대 담당자","전화 응대 연락처","급여/총무 담당자","급여 총무 연락처","급여일","급여산정 시작일","급여산정 종료일","파견/도급구분","업무내용","계약형태 (도급, I/H, F/O, 파견)","업무형태 (I/B,O/B,파견 등)","청구형태 (인원, 콜, 업무도급, 성과유지 등)","근로자 계약형태","근로자 근무형태","근무시간","휴게시간","휴일기준","청구일","고객사 요청사항","이전 고객사 이슈 사항","퇴직금 적립방식","퇴직금적립방식 변경사항 (발생대상 사업장만 작성)","연차수당 적립방식","신원보증보험","월청구분 당사입금일","퇴직연금DC사업장 근로계약 필수 작성시기","사업장 주소지(실근무지)","산재개시번호","기타","특이사항","사업장명 변경 전(2024-12)","생일축하금 (금액기재)","설,추석 선물 여부","근로자의날 선물 여부"];
 const NAME="사업장명";
-const BASIC=["사업자번호",NAME,"대표자명","계약유지상태","최초계약일","최근재계약일","업무담당자명","업무담당자 연락처"];
+const BASIC=["사업자번호",NAME,"대표자명","계약유지상태","최초계약일","갱신예정일","업무담당자명","업무담당자 연락처"];
 // 화면에 보이는 이름만 바꿈 (저장 데이터·엑셀 열 이름은 그대로)
 const LABELS={"사업장 코드":"BMP 코드","전화 응대 연락처":"CRM 전화 응대 연락처","급여/총무 담당자":"CRM 급여/총무 담당자","급여 총무 연락처":"CRM 급여/총무 연락처"};
 // 화면에서 뺀 항목 (저장된 값이 있어도 '추가 항목'에 보이지 않음)
 const REMOVED=["순번","급여관련특이사항","등록일","청구 급여 업무 담당자","근태/연차 관리 담당자","계약시작일 (재계약일)","직접비율","매출비 품의"];
 const lbl=k=>LABELS[k]||k;
 const CONTRACT_STATES=["계약","종료"];
-const DATE_COLS=["최초계약일","최근재계약일"];
+const DATE_COLS=["최초계약일","갱신예정일"];
 // 날짜 칸 값 맞추기: 2019.4.1 · 2019/04/01 → 2019-04-01 (알 수 없는 형식은 null)
 const isoDate=v=>{if(!v)return "";const m=String(v).trim().match(/^(\d{4})\D(\d{1,2})\D(\d{1,2})$/);return m?`${m[1]}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}`:null};
 // 사업자등록번호: 숫자만 남겨 000-00-00000 으로
@@ -21,8 +21,8 @@ const splitMulti=v=>String(v||"").split(",").map(x=>x.trim()).filter(Boolean);
 const GROUPS={
   "기본":["소속부서","사업부담당자","파견/도급구분","최초계약일","업무내용","급여일","경영지원본부 인사담당자"],
   "업무담당자":["소속부서","사업부담당자","사업부담당자 연락처","CRM 전화응대 담당자","전화 응대 연락처","급여/총무 담당자","급여 총무 연락처","경영지원본부 인사담당자"],
-  "계약·청구":["파견/도급구분","계약형태 (도급, I/H, F/O, 파견)","업무형태 (I/B,O/B,파견 등)","청구형태 (인원, 콜, 업무도급, 성과유지 등)","근로자 계약형태","근로자 근무형태","월청구분 당사입금일","사업장 주소지(실근무지)","산재개시번호"],
-  "임금":["급여일","급여산정 시작일","급여산정 종료일","퇴직금 적립방식","퇴직금적립방식 변경사항 (발생대상 사업장만 작성)","연차수당 적립방식","퇴직연금DC사업장 근로계약 필수 작성시기"],
+  "계약·청구":["파견/도급구분","계약형태 (도급, I/H, F/O, 파견)","업무형태 (I/B,O/B,파견 등)","청구형태 (인원, 콜, 업무도급, 성과유지 등)","근로자 계약형태","근로자 근무형태","근무시간","휴게시간","휴일기준","청구일","고객사 요청사항","이전 고객사 이슈 사항","월청구분 당사입금일"],
+  "임금":["급여일","급여산정 시작일","급여산정 종료일","퇴직금 적립방식","퇴직금적립방식 변경사항 (발생대상 사업장만 작성)","연차수당 적립방식","퇴직연금DC사업장 근로계약 필수 작성시기","사업장 주소지(실근무지)","산재개시번호"],
   "복리후생":["신원보증보험","근로자의날 선물 여부","생일축하금 (금액기재)","설,추석 선물 여부"],
   "비고":["기타","특이사항","사업장명 변경 전(2024-12)"],
   "전체":COLS.filter(c=>c!==NAME)
@@ -139,7 +139,7 @@ function refSites(){if(!$("#sbody"))return;
   $("#scount").innerHTML=`<b>${rows.length}</b> / ${S.sites.length}곳 ${active?`· 조건 ${active}개 적용`:""}`;
   const arrow=k=>S.siteF.sort===k?(S.siteF.dir>0?" ▲":" ▼"):"";
   $("#shead").innerHTML=`<tr>${[NAME,...cols].map(k=>`<th data-k="${esc(k)}" class="${S.siteF.sort===k?"sorted":""}">${esc(lbl(k))}${arrow(k)}</th>`).join("")}</tr>`;
-  const q=S.siteF.q.trim();const mono=k=>/코드|연락처|급여일|산정|번호|계약일|계약시작일|순번/.test(k);
+  const q=S.siteF.q.trim();const mono=k=>/코드|연락처|급여일|산정|번호|계약일|예정일|계약시작일|순번/.test(k);
   $("#sbody").innerHTML=rows.length?rows.map(s=>`<tr data-id="${esc(s.id)}"><td>${hl(s.f[NAME]||"(이름 없음)",q)}</td>${cols.map(k=>`<td class="${mono(k)?"mono":""}">${hl(s.f[k]||"",q)}</td>`).join("")}</tr>`).join("")
     :`<tr><td colspan="${cols.length+1}"><div class="empty"><b>${S.sites.length?"조건에 맞는 사업장이 없습니다":"사업장 정보가 아직 없습니다"}</b>${S.sites.length?"필터를 줄이거나 초기화해 보세요.":"‘사업장 추가’로 첫 사업장을 등록하세요."}</div></td></tr>`}
 
@@ -157,7 +157,7 @@ function renderDrawer(force){const root=$("#drawer-root");if(!S.drawer){root.inn
   if(S.dEdit){body=`<form id="siteForm" class="form">${COLS.map((k,i)=>{if(k==="계약유지상태")return `<div class="f"><span>${esc(lbl(k))}</span><span class="cbox">${CONTRACT_STATES.map(v=>`<label><input type="checkbox" data-k="${esc(k)}" value="${esc(v)}" ${s.f[k]===v?"checked":""}>${esc(v)}</label>`).join("")}</span></div>`;
     if(MULTI[k]){const on=splitMulti(s.f[k]);return `<div class="f"><span>${esc(lbl(k))}</span><span class="cbox">${MULTI[k].map(v=>`<label><input type="checkbox" data-k="${esc(k)}" value="${esc(v)}" ${on.includes(v)?"checked":""}>${esc(v)}</label>`).join("")}</span></div>`}
     if(DATE_COLS.includes(k)&&isoDate(s.f[k])!==null)return `<label class="f">${esc(lbl(k))}<input class="i" type="date" id="sfld${i}" data-k="${esc(k)}" value="${esc(isoDate(s.f[k]))}"></label>`;
-    if(k==="사업자번호")return `<label class="f">${esc(lbl(k))}<input class="i mono" id="sfld${i}" data-k="${esc(k)}" value="${esc(s.f[k]?bizNo(s.f[k]):"")}" inputmode="numeric" maxlength="12" placeholder="000-00-00000"></label>`;const long=/주소|특이사항|기타|업무내용/.test(k);return `<label class="f">${esc(lbl(k))}${long?`<textarea class="i" id="sfld${i}" data-k="${esc(k)}" rows="2">${esc(s.f[k]||"")}</textarea>`:`<input class="i" id="sfld${i}" data-k="${esc(k)}" value="${esc(s.f[k]||"")}" ${k===NAME?"required":""}>`}</label>`}).join("")}
+    if(k==="사업자번호")return `<label class="f">${esc(lbl(k))}<input class="i mono" id="sfld${i}" data-k="${esc(k)}" value="${esc(s.f[k]?bizNo(s.f[k]):"")}" inputmode="numeric" maxlength="12" placeholder="000-00-00000"></label>`;const long=/주소|특이사항|기타|업무내용|요청사항|이슈/.test(k);return `<label class="f">${esc(lbl(k))}${long?`<textarea class="i" id="sfld${i}" data-k="${esc(k)}" rows="2">${esc(s.f[k]||"")}</textarea>`:`<input class="i" id="sfld${i}" data-k="${esc(k)}" value="${esc(s.f[k]||"")}" ${k===NAME?"required":""}>`}</label>`}).join("")}
     <div style="display:flex;gap:8px;position:sticky;bottom:0;background:var(--surface);padding-block:10px"><button class="btn pri" type="submit">저장</button><button class="btn" type="button" id="dCancel">취소</button>${isNew?"":`<button class="btn danger" type="button" id="dDel" style="margin-left:auto">사업장 삭제</button>`}</div></form>`}
   else if(S.dTab==="info"){const sec=(t,ks)=>`<section><h3 class="sec-t">${esc(t)}</h3><dl class="kv">${ks.map(k=>`<dt>${esc(lbl(k))}</dt><dd class="${/연락처|코드|번호/.test(k)?"mono":""}">${k==="계약유지상태"&&s.f[k]?`<span class="pill ${s.f[k]==="계약"?"p-acc":"p-neutral"}">${esc(s.f[k])}</span>`:esc(s.f[k]||"—")}</dd>`).join("")}</dl></section>`;
     const used=new Set();const out=["업무담당자","계약·청구","임금","복리후생","비고"].map(g=>{const ks=GROUPS[g].filter(k=>!used.has(k));ks.forEach(k=>used.add(k));return sec(g,ks)});
@@ -176,7 +176,9 @@ function renderDrawer(force){const root=$("#drawer-root");if(!S.drawer){root.inn
   const ed=$("#dEdit");if(ed)ed.onclick=()=>{if(!leaveOk())return;Object.assign(S,{dEdit:true,dForm:null,dDirty:false,wnDraft:null});renderDrawer(true)};
   $$(".drawer .tabs button").forEach(b=>b.onclick=()=>{if(b.dataset.t===S.dTab||!leaveOk())return;Object.assign(S,{dTab:b.dataset.t,dForm:null,dDirty:false,wnDraft:null});renderDrawer(true)});
   if(!S.dEdit)bindDrawerRecords(root,s);
-  const f=$("#siteForm");if(f){f.addEventListener("submit",async e=>{e.preventDefault();const nf={};$$("[data-k]",f).forEach(el=>{if(el.type==="checkbox"&&!el.checked)return;const k=el.dataset.k,v=el.value.trim();if(!v)return;nf[k]=MULTI[k]&&nf[k]?nf[k]+", "+v:v});
+  const f=$("#siteForm");if(f){f.addEventListener("submit",async e=>{e.preventDefault();const nf={};
+      // 화면에 없는 항목(추가 항목·삭제한 항목의 예전 값)은 그대로 보존
+      Object.keys(s.f).forEach(k=>{if(!COLS.includes(k))nf[k]=s.f[k]});$$("[data-k]",f).forEach(el=>{if(el.type==="checkbox"&&!el.checked)return;const k=el.dataset.k,v=el.value.trim();if(!v)return;nf[k]=MULTI[k]&&nf[k]?nf[k]+", "+v:v});
       const id=isNew?"s"+Date.now().toString(36):s.id;const order=isNew?(Math.max(0,...S.sites.map(x=>x.order||0))+1):(s.order||0);
       try{await db.doc("sites/"+id).set({order,f:nf,source:s.source||"직접 입력",updatedAt:new Date().toISOString(),updatedBy:uid||""});toast("저장했습니다");S.dEdit=false;S.drawer=id;$("#drawer-root").innerHTML="";renderDrawer()}catch(x){err(x)}});
     const bz=$('[data-k="사업자번호"]',f);if(bz)bz.oninput=()=>{const at=bz.selectionStart,before=bz.value.slice(0,at).replace(/\D/g,"").length;bz.value=bizNo(bz.value);
