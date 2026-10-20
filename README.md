@@ -111,6 +111,7 @@ python tools/excel_to_seed.py "급여기초.xlsx"
 | 급여기초 필터 항목 | `FILTERS` |
 | 노무 문제 유형 | `ISSUE_TYPES` |
 | 산업안전보건 구분 | `SAFETY_TYPES` |
+| 급여 특이사항의 과태료·법적 책임 참고표 (법 개정 시 수정) | `LEGAL_REF`, `LEGAL_NOTES`, `LEGAL_REF_DATE` |
 | 처리 상태 | `STATUSES` |
 | 노무 문제 위험도 | `RISKS` |
 | 급여 특이사항 구분 | `NOTE_TYPES` |
