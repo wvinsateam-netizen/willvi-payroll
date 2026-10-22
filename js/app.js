@@ -28,11 +28,18 @@ const GROUPS={
   "전체":COLS.filter(c=>c!==NAME)
 };
 const FILTERS=[["소속부서","소속부서"],["파견/도급구분","파견/도급"],["계약형태 (도급, I/H, F/O, 파견)","계약형태"],["급여일","급여일"],["퇴직금 적립방식","퇴직금 적립"]];
-const ISSUE_TYPES=["임금·체불","근로시간·연장","휴가·휴직","징계·해고","직장 내 괴롭힘","산업재해","퇴직금·연금","근로계약","4대보험","기타"];
-const SAFETY_TYPES=["안전보건교육","건강검진","위험성평가","작업환경측정","산업재해","안전점검","산업안전보건위원회","기타"];
+const HARASS="직장 내 괴롭힘·직장 내 성희롱";
+const ISSUE_TYPES=["임금·체불","근로시간·연장","휴가·휴직","징계·해고·인사발령",HARASS,"불법파견","산업재해","퇴직금·연금","근로계약","4대보험","기타"];
+const STATUSES=["진행중","미해결","종결"];
+// 예전에 저장된 값 → 새 값 (불러올 때 바꿔서 보여 주고, 고쳐 저장하면 새 값으로 저장됨)
+const OLD_ISSUE={status:{"접수":"진행중","완료":"종결"},type:{"직장 내 괴롭힘":HARASS,"징계·해고":"징계·해고·인사발령"}};
+const normIssue=i=>({...i,status:OLD_ISSUE.status[i.status]||(STATUSES.includes(i.status)?i.status:"진행중"),type:OLD_ISSUE.type[i.type]||i.type});
+const isOpen=i=>i.status!=="종결";
+const SAFETY_TYPES=["안전보건교육","건강검진","위험성평가","안전점검","산업재해","안전보건개선계획 수립명령","기타"];
 const SAFETY_STATES=["예정","완료"];
-const STATUSES=["접수","진행중","완료"];
-const RISKS=["높음","보통","낮음"];
+const ACC_KINDS=["업무상 사고","업무상 질병","출퇴근 재해","사망"];
+const LEAVE_KINDS=["없음","3일 미만","3일 이상"];
+const EMERG_ROLES=["현장 관리자(소장)","현장 안전담당","본사 담당","지사 담당","고객사 담당","가까운 병원","소방서 (119)"];
 const BILL_TYPES=["인원 변동","단가·요율","추가 청구","차감·환불","정산","입금","기타"];
 const NOTE_TYPES=["수당","공제","소급·정산","입·퇴사","휴직·복직","청구","기타"];
 // 엑셀 원본이 바뀐 값을 이미 저장된 데이터에도 반영 (현재 값이 예전 값 그대로일 때만 바꿈 → 직접 고친 값은 유지)
@@ -44,7 +51,7 @@ const DATA_FIXES=[
 /* ---------- 상태 ---------- */
 const S={view:"home",sites:[],issues:[],safety:[],notes:[],bills:[],wagenotes:{},loaded:{sites:false,issues:false,safety:false,notes:false,bills:false,wagenotes:false},laborF:{q:"",issue:"",safety:"",only:false},cState:"계약",
   siteF:{q:"",group:"기본",sort:null,dir:1},siteSel:{},recF:{notes:{q:"",month:"",type:"",only:false},bills:{q:"",month:"",type:"",only:false}},
-  drawer:null,dTab:"info",dEdit:false,dForm:null,dDirty:false,wnDraft:null,bmDraft:null};
+  drawer:null,dTab:"info",dEdit:false,dForm:null,dDirty:false,wnDraft:null,bmDraft:null,sfDraft:null};
 let db=null,user=null,uid=null,dl=null,readOnly=false;
 const names={};
 try{const v=localStorage.getItem("wv-view");if(v)S.view=v;localStorage.removeItem("wv-group");}catch(e){}
@@ -70,6 +77,7 @@ async function fillNames(){if(!user||!user.profiles)return;const ids=[...new Set
 const who=id=>id?`<span data-uid="${esc(id)}">${esc(names[id]||"작성자")}</span>`:"";
 
 /* ---------- 내비 ---------- */
+$("#main").addEventListener("click",e=>{const d=e.target.closest("[data-dl]");if(d&&S.view==="home")openDrawer(d.dataset.dl,"safety")});
 $("#nav").addEventListener("click",e=>{const b=e.target.closest("button[data-v]");if(!b)return;go(b.dataset.v)});
 // 메뉴를 열 때마다 처음 상태로: 청구·급여 특이사항, 노무관리는 전체 사업장, 급여기초는 기본 탭
 // 계약유지상태 구분 (급여기초·청구·급여 특이사항·노무관리 공통). 비어 있으면 '계약'으로 봄
@@ -84,7 +92,7 @@ document.addEventListener("click",e=>{const b=e.target.closest(".cstabs [data-cs
   ({sites:refSites,bills:()=>refRec("bills"),notes:()=>refRec("notes"),issues:refLabor}[S.view]||(()=>{}))()});
 const ALL_FIRST={bills:()=>S.recF.bills,notes:()=>S.recF.notes,issues:()=>S.laborF};
 function go(v,opt){S.view=v;if(ALL_FIRST[v])ALL_FIRST[v]().only=false;if(v==="sites")S.siteF.group="기본";if(ALL_FIRST[v]||v==="sites")S.cState="계약";try{localStorage.setItem("wv-view",v)}catch(e){}if(opt)Object.assign(S,opt);render();window.scrollTo(0,0)}
-function counts(){$("#c-sites").textContent=S.sites.length;$("#c-issues").textContent=S.issues.filter(i=>i.status!=="완료").length+S.safety.filter(overdue).length;
+function counts(){$("#c-sites").textContent=S.sites.length;$("#c-issues").textContent=S.issues.filter(isOpen).length+lateCount();
   $("#c-notes").textContent=S.notes.filter(n=>n.month===thisMonth()).length;$("#c-bills").textContent=S.bills.filter(n=>n.month===thisMonth()).length;
   $$("#nav button").forEach(b=>b.setAttribute("aria-current",b.dataset.v===S.view?"page":"false"))}
 
@@ -97,24 +105,23 @@ function render(){counts();const m=$("#main");
 function refresh(){counts();({home:()=>render(),sites:refSites,bills:()=>refRec("bills"),issues:refLabor,notes:()=>refRec("notes")}[S.view]||render)();if(S.drawer)renderDrawer();fillNames()}
 
 /* ===== 홈 ===== */
-function vHome(){const n=S.sites.length,open=S.issues.filter(i=>i.status!=="완료"),mon=S.notes.filter(x=>x.month===thisMonth()),bmon=S.bills.filter(x=>x.month===thisMonth());
+function vHome(){const n=S.sites.length,open=S.issues.filter(isOpen),mon=S.notes.filter(x=>x.month===thisMonth()),bmon=S.bills.filter(x=>x.month===thisMonth());
   const by=(k)=>{const m={};S.sites.forEach(s=>{const v=(s.f[k]||"미기재").trim();m[v]=(m[v]||0)+1});return Object.entries(m).sort((a,b)=>b[1]-a[1])};
   const bars=(arr,suf="",colorOf)=>{const mx=Math.max(1,...arr.map(a=>a[1]));return `<div class="bars">${arr.map(([k,c])=>`<div class="r"><span title="${esc(k)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(k)}${suf}</span><span class="t"><i style="width:${c/mx*100}%${colorOf?`;background:${colorOf(k)}`:""}"></i></span><span class="c">${c}</span></div>`).join("")}</div>`};
-  const riskColor=r=>r==="높음"?"var(--bad)":r==="보통"?"var(--warn)":"var(--ok)";
-  const byRisk=RISKS.map(r=>[r,open.filter(i=>i.risk===r).length]);
+  const t=today(),DL=deadlines().filter(d=>d.due<=addDays(t,30)),late=DL.filter(d=>d.due<t).length,cost=open.reduce((a,i)=>a+(+i.cost||0),0);
   const recent=S.issues.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||"")).slice(0,5);
   return `<div class="page-h"><div><h1>급여·노무 관리 홈</h1><p>사업장별 급여기초 정보, 청구 특이사항, 급여 특이사항, 노무관리(노무 문제·산업안전보건)를 한곳에서 관리합니다.</p></div></div>
   <div class="grid g-stats" style="margin-bottom:16px">
     <button class="stat" onclick="WV.go('sites')"><span class="l">관리 사업장</span><span class="v">${n}<small>곳</small></span><span class="n">급여기초 등록 기준</span></button>
     <button class="stat" onclick="WV.go('bills')"><span class="l">${thisMonth().replace("-","년 ")}월 청구 특이사항</span><span class="v">${bmon.length}<small>건</small></span><span class="n">전체 ${S.bills.length}건</span></button>
     <button class="stat" onclick="WV.go('notes')"><span class="l">${thisMonth().replace("-","년 ")}월 급여 특이사항</span><span class="v">${mon.length}<small>건</small></span><span class="n">전체 ${S.notes.length}건</span></button>
-    <button class="stat" onclick="WV.go('issues')"><span class="l">미해결 노무 문제</span><span class="v" style="color:${open.length?"var(--bad)":"inherit"}">${open.length}<small>건</small></span><span class="n">${open.filter(i=>i.risk==="높음").length?`<b style="color:var(--bad)">위험 높음 ${open.filter(i=>i.risk==="높음").length}</b> · `:""}접수 ${open.filter(i=>i.status==="접수").length} · 진행중 ${open.filter(i=>i.status==="진행중").length}${S.safety.filter(overdue).length?` · <b style="color:var(--bad)">안전보건 기한 지남 ${S.safety.filter(overdue).length}</b>`:""}</span></button>
+    <button class="stat" onclick="WV.go('issues')"><span class="l">종결 전 노무 문제</span><span class="v" style="color:${open.length?"var(--bad)":"inherit"}">${open.length}<small>건</small></span><span class="n">진행중 ${open.filter(i=>i.status==="진행중").length} · 미해결 ${open.filter(i=>i.status==="미해결").length}${cost?` · <b style="color:var(--bad)">지출 예정 ${won(cost)}원</b>`:""}${late?` · <b style="color:var(--bad)">안전보건 기한 지남 ${late}</b>`:""}</span></button>
   </div>
   <div class="grid g-2">
     <div class="card"><div class="hd"><h2>최근 노무 문제</h2><button class="btn sm" style="margin-left:auto" onclick="WV.go('issues')">전체 보기</button></div>
       ${recent.length?`<div class="list">${recent.map(i=>issueRow(i)).join("")}</div>`:`<div class="empty"><b>등록된 노무 문제가 없습니다</b>노무관리 메뉴에서 사업장별 노무 문제를 입력하면 여기에 최근 5건이 표시됩니다.</div>`}</div>
     <div class="grid">
-      <div class="card"><div class="hd"><h2>위험도별 미해결 노무 문제</h2></div><div class="bd">${open.length?bars(byRisk,"",riskColor):`<div class="muted">미해결 노무 문제가 없습니다.</div>`}</div></div>
+      <div class="card"><div class="hd"><h2>안전보건 기한 알림</h2><span class="sub">기한 지남·30일 이내</span></div>${DL.length?`<div class="list">${DL.slice(0,8).map(d=>`<div class="item" style="cursor:pointer" data-dl="${esc(d.siteId)}"><span class="bar" style="background:${d.due<t?"var(--bad)":"var(--warn)"}"></span><div style="min-width:0"><div class="meta"><b style="color:var(--ink)">${esc(siteName(d.siteId))}</b><span>${esc(d.what)}</span></div><h3 style="font-size:13.5px">${esc(d.title)}</h3></div><div class="side"><span class="mono" style="font-weight:700;color:${d.due<t?"var(--bad)":"var(--warn)"}">${dday(d.due)}</span><span class="mono tiny muted">${esc(d.due)}</span></div></div>`).join("")}</div>`:`<div class="bd"><div class="muted">30일 안에 다가오는 안전보건 기한이 없습니다.</div></div>`}</div>
       <div class="card"><div class="hd"><h2>급여일별 사업장</h2></div><div class="bd">${n?bars(by("급여일").map(([k,c])=>[/^\d+$/.test(k)?k+"일":k,c])):`<div class="muted">사업장 정보를 불러오는 중입니다.</div>`}</div></div>
     </div>
   </div>`}
@@ -157,8 +164,8 @@ function refSites(){if(!$("#sbody"))return;
     :`<tr><td colspan="${cols.length+1}"><div class="empty"><b>${S.sites.length?"조건에 맞는 사업장이 없습니다":"사업장 정보가 아직 없습니다"}</b>${S.sites.length?"필터를 줄이거나 초기화해 보세요.":"‘사업장 추가’로 첫 사업장을 등록하세요."}</div></td></tr>`}
 
 /* ===== 사업장 상세 드로어 ===== */
-function openDrawer(id,tab){Object.assign(S,{drawer:id,dTab:tab||"info",dEdit:false,dForm:null,dDirty:false,wnDraft:null,bmDraft:null,dWarn:false});renderDrawer(true)}
-function closeDrawer(){if(!leaveOk())return;Object.assign(S,{drawer:null,dEdit:false,dForm:null,dDirty:false,wnDraft:null,bmDraft:null});renderDrawer(true)}
+function openDrawer(id,tab){Object.assign(S,{drawer:id,dTab:tab||"info",dEdit:false,dForm:null,dDirty:false,wnDraft:null,bmDraft:null,sfDraft:null,dWarn:false});renderDrawer(true)}
+function closeDrawer(){if(!leaveOk())return;Object.assign(S,{drawer:null,dEdit:false,dForm:null,dDirty:false,wnDraft:null,bmDraft:null,sfDraft:null});renderDrawer(true)}
 // 입력 중인 내용이 있으면 한 번은 막고 알림, 다시 누르면 버리고 진행
 function leaveOk(){if(!(S.dForm||S.dDirty)||S.dWarn){S.dWarn=false;return true}S.dWarn=true;toast("저장하지 않은 입력이 있습니다. 다시 누르면 버리고 이동합니다.");setTimeout(()=>S.dWarn=false,4000);return false}
 function renderDrawer(force){const root=$("#drawer-root");if(!S.drawer){root.innerHTML="";return}
@@ -181,13 +188,13 @@ function renderDrawer(force){const root=$("#drawer-root");if(!S.drawer){root.inn
   else if(REC[S.dTab])body=drawerRec(S.dTab,s,mine(S.dTab));
   root.innerHTML=`<div class="drawer-bg" id="dBg"></div><div class="drawer" role="dialog" aria-modal="true" aria-label="사업장 상세">
     <div class="dh"><div style="min-width:0"><div class="tiny muted mono">${esc(s.f["사업장 코드"]?"코드 "+s.f["사업장 코드"]:"")} ${esc(s.f["소속부서"]||"")}</div><h2>${isNew?"새 사업장":esc(s.f[NAME]||"(이름 없음)")}</h2>
-      <div class="chips" style="margin-top:6px">${s.f["파견/도급구분"]?`<span class="pill p-neutral">${esc(s.f["파견/도급구분"])}</span>`:""}${s.f["급여일"]?`<span class="pill p-neutral">급여일 ${esc(s.f["급여일"])}${/^\d+$/.test(s.f["급여일"])?"일":""}</span>`:""}${iss.filter(i=>i.status!=="완료").length?`<span class="pill p-open">미해결 노무 ${iss.filter(i=>i.status!=="완료").length}</span>`:""}</div></div>
+      <div class="chips" style="margin-top:6px">${s.f["파견/도급구분"]?`<span class="pill p-neutral">${esc(s.f["파견/도급구분"])}</span>`:""}${s.f["급여일"]?`<span class="pill p-neutral">급여일 ${esc(s.f["급여일"])}${/^\d+$/.test(s.f["급여일"])?"일":""}</span>`:""}${iss.filter(isOpen).length?`<span class="pill p-open">종결 전 노무 ${iss.filter(isOpen).length}</span>`:""}</div></div>
       <div style="margin-left:auto;display:flex;gap:6px">${!S.dEdit&&!readOnly&&db?`<button class="btn sm" id="dEdit">정보 수정</button>`:""}<button class="btn sm" id="dClose" aria-label="닫기">닫기</button></div></div>
     ${S.dEdit?"":`<div class="tabs" role="tablist">${tabs.map(([k,l])=>`<button role="tab" data-t="${k}" aria-selected="${S.dTab===k}">${esc(l)}</button>`).join("")}</div>`}
     <div class="db">${body}</div></div>`;
   $("#dBg").onclick=closeDrawer;$("#dClose").onclick=closeDrawer;
-  const ed=$("#dEdit");if(ed)ed.onclick=()=>{if(!leaveOk())return;Object.assign(S,{dEdit:true,dForm:null,dDirty:false,wnDraft:null,bmDraft:null});renderDrawer(true)};
-  $$(".drawer .tabs button").forEach(b=>b.onclick=()=>{if(b.dataset.t===S.dTab||!leaveOk())return;Object.assign(S,{dTab:b.dataset.t,dForm:null,dDirty:false,wnDraft:null,bmDraft:null});renderDrawer(true)});
+  const ed=$("#dEdit");if(ed)ed.onclick=()=>{if(!leaveOk())return;Object.assign(S,{dEdit:true,dForm:null,dDirty:false,wnDraft:null,bmDraft:null,sfDraft:null});renderDrawer(true)};
+  $$(".drawer .tabs button").forEach(b=>b.onclick=()=>{if(b.dataset.t===S.dTab||!leaveOk())return;Object.assign(S,{dTab:b.dataset.t,dForm:null,dDirty:false,wnDraft:null,bmDraft:null,sfDraft:null});renderDrawer(true)});
   if(!S.dEdit)bindDrawerRecords(root,s);
   const f=$("#siteForm");if(f){f.addEventListener("submit",async e=>{e.preventDefault();const nf={};
       // 화면에 없는 항목(추가 항목·삭제한 항목의 예전 값)은 그대로 보존
@@ -203,15 +210,15 @@ function renderDrawer(force){const root=$("#drawer-root");if(!S.drawer){root.inn
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&S.drawer&&!S.dEdit)closeDrawer()});
 
 /* ===== 노무 문제 ===== */
-function riskPill(r){const k=RISKS.indexOf(r);return k<0?"":`<span class="pill rk rk-${k}" title="위험도">위험 ${esc(r)}</span>`}
+const won0=n=>(+n||0)?won(n)+"원":"";
+const stPill=s=>`<span class="pill ${s==="종결"?"p-done":s==="진행중"?"p-prog":"p-open"}">${esc(s)}</span>`;
 // inDrawer: 사업장 상세 안에서 보일 때 (사업장명 생략, 수정·삭제 버튼 표시)
 function issueRow(i,inDrawer){return `<div class="item s-${esc(i.status)}"><span class="bar"></span><div style="min-width:0">
-  <div class="meta"><span class="pill ${i.status==="완료"?"p-done":i.status==="진행중"?"p-prog":"p-open"}">${esc(i.status)}</span>${riskPill(i.risk)}${inDrawer?"":`<b style="color:var(--ink)">${esc(siteName(i.siteId))}</b>`}<span>${esc(i.type)}</span><span class="mono">${esc(i.date)}</span>${i.owner?`<span>담당 ${esc(i.owner)}</span>`:""}</div>
+  <div class="meta">${stPill(i.status)}${inDrawer?"":`<b style="color:var(--ink)">${esc(siteName(i.siteId))}</b>`}<span>${esc(i.type)}</span><span class="mono">${esc(i.date)}</span>${+i.cost?`<span class="mono" style="color:var(--bad)">지출 예정 ${won(i.cost)}원</span>`:""}${i.owner?`<span>담당 ${esc(i.owner)}</span>`:""}</div>
   <h3>${esc(i.title)}</h3>${i.content?`<p>${esc(i.content)}</p>`:""}${i.result?`<p class="tiny" style="margin-top:6px;color:var(--ok)">처리 결과 · ${esc(i.result)}</p>`:""}
   </div>
   ${inDrawer&&db&&!readOnly?`<div class="side"><select class="i" style="width:auto;padding:3px 8px;font-size:12px" data-st="${esc(i.id)}" aria-label="처리상태">${STATUSES.map(s=>`<option ${s===i.status?"selected":""}>${s}</option>`).join("")}</select><button class="btn sm" data-ied="${esc(i.id)}">수정</button><button class="btn sm danger" data-idel="${esc(i.id)}">삭제</button></div>`:""}</div>`}
-const rIdx=i=>{const k=RISKS.indexOf(i.risk);return k<0?1:k};
-const issueSort=(a,b)=>(STATUSES.indexOf(a.status)-STATUSES.indexOf(b.status))||(rIdx(a)-rIdx(b))||(b.date||"").localeCompare(a.date||"");
+const issueSort=(a,b)=>(isOpen(b)-isOpen(a))||((+b.cost||0)-(+a.cost||0))||(b.date||"").localeCompare(a.date||"");
 // 사업장 표 공통: 검색어가 사업장명이나 기록 내용에 있으면 통과
 const textHit=(q,...vals)=>!q||vals.some(v=>String(v||"").toLowerCase().includes(q));
 /* ===== 노무관리 (노무 문제 · 산업안전보건관리) ===== */
@@ -221,13 +228,13 @@ function vLabor(){const F=S.laborF;return `<div class="page-h"><div><h1>노무�
   <div class="card">
     <div class="bd" style="border-bottom:1px solid var(--line)"><div class="filters f3">
       <label class="f q">전체 검색<input class="i" id="lq" type="search" placeholder="사업장명, 제목, 내용, 담당자" value="${esc(F.q)}"></label>
-      <label class="f">노무 문제<select class="i" id="lfIssue"><option value="">전체</option><option value="open">미해결</option>${STATUSES.map(s=>`<option>${s}</option>`).join("")}</select></label>
-      <label class="f">산업안전보건<select class="i" id="lfSafety"><option value="">전체</option><option value="late">기한 지남</option>${SAFETY_STATES.map(s=>`<option>${s}</option>`).join("")}</select></label>
+      <label class="f">노무 문제<select class="i" id="lfIssue"><option value="">전체</option><option value="open">종결 전 (진행중·미해결)</option>${STATUSES.map(s=>`<option>${s}</option>`).join("")}</select></label>
+      <label class="f">산업안전보건<select class="i" id="lfSafety"><option value="">전체</option><option value="late">기한 지남</option><option value="soon">기한 30일 이내</option>${SAFETY_STATES.map(s=>`<option>${s}</option>`).join("")}</select></label>
     </div></div>
     <div class="toolbar"><span class="count" id="lcount"></span>
       <span class="chips" id="lonly"><button class="chip" data-o="" aria-pressed="${!F.only}">전체 사업장</button><button class="chip" data-o="1" aria-pressed="${F.only}">기록 있는 사업장</button></span>
       <button class="btn sm" id="lreset" style="margin-left:auto">필터 초기화</button></div>
-    <div class="tbl-wrap"><table class="sitetbl"><thead><tr><th>사업장명</th><th>소속부서</th><th class="num">노무 미해결</th><th class="num">위험 높음</th><th>최근 노무 문제</th><th class="num">안전보건 기한 지남</th><th class="num">안전보건 예정</th><th class="num">산업재해</th><th>다음 안전보건 일정</th></tr></thead><tbody id="lbody"></tbody></table></div>
+    <div class="tbl-wrap"><table class="sitetbl"><thead><tr><th>사업장명</th><th>소속부서</th><th class="num">노무 진행중</th><th class="num">노무 미해결</th><th class="num">지출 예정액</th><th>최근 노무 문제</th><th class="num">안전보건 기한 지남</th><th class="num">산업재해</th><th>다음 안전보건 기한</th></tr></thead><tbody id="lbody"></tbody></table></div>
   </div>`}
 function bindLabor(){const F=S.laborF;$("#lfIssue").value=F.issue;$("#lfSafety").value=F.safety;
   $("#lq").oninput=e=>{F.q=e.target.value;refLabor()};
@@ -235,48 +242,110 @@ function bindLabor(){const F=S.laborF;$("#lfIssue").value=F.issue;$("#lfSafety")
   $("#lonly").onclick=e=>{const b=e.target.closest("[data-o]");if(!b)return;F.only=!!b.dataset.o;$$("#lonly .chip").forEach(c=>c.setAttribute("aria-pressed",c===b));refLabor()};
   $("#lreset").onclick=()=>{Object.assign(F,{q:"",issue:"",safety:""});$("#lq").value=$("#lfIssue").value=$("#lfSafety").value="";refLabor()};
   $("#lbody").onclick=e=>{const tr=e.target.closest("tr[data-id]");if(!tr)return;const id=tr.dataset.id;
-    const openI=S.issues.some(i=>i.siteId===id&&i.status!=="완료"),late=S.safety.some(x=>x.siteId===id&&overdue(x));
-    openDrawer(id,openI||!late&&!S.safety.some(x=>x.siteId===id)?"issues":"safety")};
+    const openI=S.issues.some(i=>i.siteId===id&&isOpen(i)),late=deadlines().some(d=>d.siteId===id&&d.due<today());
+    openDrawer(id,openI&&!late?"issues":late||S.safety.some(x=>x.siteId===id)?"safety":"issues")};
   refLabor()}
-function refLabor(){if(!$("#lbody"))return;const F=S.laborF,q=F.q.trim().toLowerCase();
-  const iHit=i=>!F.issue||(F.issue==="open"?i.status!=="완료":i.status===F.issue),sHit=x=>!F.safety||(F.safety==="late"?overdue(x):x.state===F.safety);
+function refLabor(){if(!$("#lbody"))return;const F=S.laborF,q=F.q.trim().toLowerCase(),t=today(),soon=addDays(t,30),DL=deadlines();
+  const iHit=i=>!F.issue||(F.issue==="open"?isOpen(i):i.status===F.issue);
+  const dHit=d=>F.safety==="late"?d.due<t:F.safety==="soon"?d.due>=t&&d.due<=soon:true;
   updCs();const rows=sitesIn().map(s=>{const nameHit=textHit(q,s.f[NAME]);
-      let iss=S.issues.filter(i=>i.siteId===s.id&&iHit(i)),saf=S.safety.filter(x=>x.siteId===s.id&&sHit(x));
+      let iss=S.issues.filter(i=>i.siteId===s.id&&iHit(i)),saf=S.safety.filter(x=>x.siteId===s.id&&(!SAFETY_STATES.includes(F.safety)||x.state===F.safety)),dl=DL.filter(d=>d.siteId===s.id);
       if(!nameHit){iss=iss.filter(i=>textHit(q,i.title,i.content,i.owner,i.result));saf=saf.filter(x=>textHit(q,x.title,x.content,x.owner))}
-      return {s,iss,saf,nameHit}})
-    .filter(r=>(r.nameHit||r.iss.length||r.saf.length)&&(!F.issue||r.iss.length)&&(!F.safety||r.saf.length)&&(!F.only||r.iss.length||r.saf.length));
-  const open=l=>l.filter(i=>i.status!=="완료"),late=l=>l.filter(overdue),next=l=>l.filter(x=>x.state==="예정").sort((a,b)=>(a.date||"").localeCompare(b.date||""))[0];
-  rows.sort((a,b)=>(open(b.iss).length+late(b.saf).length)-(open(a.iss).length+late(a.saf).length)||open(b.iss).filter(i=>i.risk==="높음").length-open(a.iss).filter(i=>i.risk==="높음").length||(next(a.saf)?.date||"9999").localeCompare(next(b.saf)?.date||"9999")||(a.s.order??999)-(b.s.order??999));
-  const tO=rows.reduce((n,r)=>n+open(r.iss).length,0),tL=rows.reduce((n,r)=>n+late(r.saf).length,0);
-  $("#lcount").innerHTML=`<b>${rows.length}</b>곳${tO?` · 노무 미해결 <b style="color:var(--bad)">${tO}</b>건`:""}${tL?` · 안전보건 기한 지남 <b style="color:var(--bad)">${tL}</b>건`:""}`;
+      const dlF=dl.filter(dHit);
+      return {s,iss,saf,dl,dlF,nameHit}})
+    .filter(r=>(r.nameHit||r.iss.length||r.saf.length)&&(!F.issue||r.iss.length)&&(!F.safety||(SAFETY_STATES.includes(F.safety)?r.saf.length:r.dlF.length))&&(!F.only||r.iss.length||r.saf.length||r.dl.length));
+  const open=l=>l.filter(isOpen),late=l=>l.filter(d=>d.due<t),cost=l=>open(l).reduce((n,i)=>n+(+i.cost||0),0);
+  rows.sort((a,b)=>(open(b.iss).length+late(b.dl).length)-(open(a.iss).length+late(a.dl).length)||cost(b.iss)-cost(a.iss)||(a.dl[0]?.due||"9999").localeCompare(b.dl[0]?.due||"9999")||(a.s.order??999)-(b.s.order??999));
+  const tO=rows.reduce((n,r)=>n+open(r.iss).length,0),tL=rows.reduce((n,r)=>n+late(r.dl).length,0),tC=rows.reduce((n,r)=>n+cost(r.iss),0);
+  $("#lcount").innerHTML=`<b>${rows.length}</b>곳${tO?` · 종결 전 노무 문제 <b>${tO}</b>건`:""}${tC?` · 지출 예정 <b style="color:var(--bad)">${won(tC)}</b>원`:""}${tL?` · 안전보건 기한 지남 <b style="color:var(--bad)">${tL}</b>건`:""}`;
   const n=(v,c)=>v?`<span class="num-b"${c?` style="color:${c}"`:""}>${v}</span>`:`<span class="muted">0</span>`,dash=`<span class="muted">—</span>`;
-  $("#lbody").innerHTML=rows.length?rows.map(({s,iss,saf})=>{const o=open(iss),lastI=iss.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||""))[0],nx=next(saf);
+  $("#lbody").innerHTML=rows.length?rows.map(({s,iss,saf,dl})=>{const lastI=iss.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||""))[0],nx=dl[0],c=cost(iss);
       return `<tr data-id="${esc(s.id)}"><td>${hl(s.f[NAME]||"(이름 없음)",F.q.trim())}</td><td>${esc(s.f["소속부서"]||"")}</td>
-        <td class="num">${n(o.length,"var(--bad)")}</td><td class="num">${n(o.filter(i=>i.risk==="높음").length,"var(--bad)")}</td>
+        <td class="num">${n(iss.filter(i=>i.status==="진행중").length)}</td><td class="num">${n(iss.filter(i=>i.status==="미해결").length,"var(--bad)")}</td>
+        <td class="num">${c?`<span class="num-b" style="color:var(--bad)">${won(c)}</span>`:`<span class="muted">0</span>`}</td>
         <td class="clip">${lastI?`<span class="mono">${esc(lastI.date||"")}</span> ${esc(lastI.title||"")}`:dash}</td>
-        <td class="num">${n(late(saf).length,"var(--bad)")}</td><td class="num">${n(saf.filter(x=>x.state==="예정").length)}</td><td class="num">${n(saf.filter(x=>x.type==="산업재해").length,"var(--bad)")}</td>
-        <td class="clip">${nx?`<span class="mono"${overdue(nx)?' style="color:var(--bad)"':""}>${esc(nx.date||"")}</span> ${esc(nx.type)}`:dash}</td></tr>`}).join("")
+        <td class="num">${n(late(dl).length,"var(--bad)")}</td><td class="num">${n(saf.filter(x=>x.type==="산업재해").length,"var(--bad)")}</td>
+        <td class="clip">${nx?`<span class="mono"${nx.due<t?' style="color:var(--bad)"':""}>${esc(nx.due)} ${dday(nx.due)}</span> ${esc(nx.what)}`:dash}</td></tr>`}).join("")
     :`<tr><td colspan="9"><div class="empty"><b>${S.issues.length||S.safety.length?"조건에 맞는 사업장이 없습니다":"아직 등록된 노무 문제·안전보건 기록이 없습니다"}</b>${S.issues.length||S.safety.length?"필터를 줄이거나 초기화해 보세요.":"‘전체 사업장’을 누르고 사업장을 골라 입력하세요."}</div></td></tr>`}
 
 /* ----- 산업안전보건관리 ----- */
-const overdue=x=>x.state==="예정"&&(x.date||"")<today();
-const safetyStatePill=x=>overdue(x)?`<span class="pill p-open">기한 지남</span>`:x.state==="완료"?`<span class="pill p-done">완료</span>`:`<span class="pill p-prog">예정</span>`;
-const safetySort=(a,b)=>(overdue(b)-overdue(a))||((a.state==="완료")-(b.state==="완료"))||(a.state==="완료"?(b.date||"").localeCompare(a.date||""):(a.date||"").localeCompare(b.date||""));
-function safetyRow(x,inDrawer){const c=overdue(x)?"var(--bad)":x.state==="완료"?"var(--ok)":"var(--warn)";return `<div class="item"><span class="bar" style="background:${c}"></span><div style="min-width:0">
-  <div class="meta">${safetyStatePill(x)}${inDrawer?"":`<b style="color:var(--ink)">${esc(siteName(x.siteId))}</b>`}<span>${esc(x.type)}</span><span class="mono">${esc(x.date)}</span>${x.people?`<span>대상 ${esc(x.people)}명</span>`:""}${x.owner?`<span>담당 ${esc(x.owner)}</span>`:""}</div>
+const addDays=(d,n)=>{const t=new Date(d+"T00:00:00Z");t.setUTCDate(t.getUTCDate()+n);return t.toISOString().slice(0,10)};
+// 한 달 뒤 같은 날 (없는 날이면 그 달 말일)
+const addMonth=d=>{const [y,m,dd]=d.split("-").map(Number);const t=new Date(Date.UTC(y,m,dd));if(t.getUTCDate()!==dd)t.setUTCDate(0);return t.toISOString().slice(0,10)};
+const dday=d=>{const n=Math.round((Date.parse(d)-Date.parse(today()))/864e5);return n===0?"D-day":n>0?`D-${n}`:`D+${-n}`};
+// 산업재해조사표 제출 대상: 사망 또는 3일 이상 휴업 (출퇴근 재해 제외) → 발생일부터 1개월 이내
+const reportable=x=>x.type==="산업재해"&&x.acc!=="출퇴근 재해"&&(x.acc==="사망"||x.leave==="3일 이상");
+// 기한: 산업재해조사표(발생일+1개월), 개선계획서(명령일+60일), 나머지는 예정일
+const dueOf=x=>!x.date?"":x.type==="산업재해"?(reportable(x)?addMonth(x.date):""):x.type==="안전보건개선계획 수립명령"?addDays(x.date,60):x.date;
+const overdue=x=>x.state==="예정"&&!!dueOf(x)&&dueOf(x)<today();
+const dueWhat=x=>x.type==="산업재해"?"산업재해조사표 제출":x.type==="안전보건개선계획 수립명령"?"개선계획서 제출":x.type;
+const stateText=x=>x.type==="산업재해"?(reportable(x)?(x.state==="완료"?"조사표 제출":"조사표 제출 전"):"조사표 비대상"):x.type==="안전보건개선계획 수립명령"?(x.state==="완료"?"계획서 제출":"계획서 제출 전"):x.state;
+// 신규 사업장 체크리스트: 사업 개시일을 넣으면 최초 위험성평가 기한(개시일+30일)
+const ckOf=id=>memoOf(id).checklist||{};
+const ckDue=c=>c.start&&!c.raDone?addDays(c.start,30):"";
+// 기한 목록 (종료 사업장 포함 전체, 기한 빠른 순)
+function deadlines(){const out=[];
+  S.safety.forEach(x=>{const d=dueOf(x);if(x.state==="예정"&&d)out.push({siteId:x.siteId,what:dueWhat(x),title:x.title||"",due:d})});
+  S.sites.forEach(s=>{const d=ckDue(ckOf(s.id));if(d)out.push({siteId:s.id,what:"최초 위험성평가",title:"신규 사업장 체크리스트",due:d})});
+  return out.sort((a,b)=>a.due.localeCompare(b.due))}
+const lateCount=()=>deadlines().filter(d=>d.due<today()).length;
+function safetyStatePill(x){const late=overdue(x),t=stateText(x);return late?`<span class="pill p-open">기한 지남</span>`:`<span class="pill ${x.state==="완료"||t==="조사표 비대상"?"p-done":"p-prog"}">${esc(t)}</span>`}
+const safetySort=(a,b)=>(overdue(b)-overdue(a))||((a.state==="완료")-(b.state==="완료"))||(a.state==="완료"?(b.date||"").localeCompare(a.date||""):(dueOf(a)||a.date||"").localeCompare(dueOf(b)||b.date||""));
+function safetyRow(x,inDrawer){const late=overdue(x),due=dueOf(x),c=late?"var(--bad)":x.state==="완료"?"var(--ok)":"var(--warn)";return `<div class="item"><span class="bar" style="background:${c}"></span><div style="min-width:0">
+  <div class="meta">${safetyStatePill(x)}${inDrawer?"":`<b style="color:var(--ink)">${esc(siteName(x.siteId))}</b>`}<span>${esc(x.type)}</span><span class="mono">${esc(x.date)}</span>${x.type==="산업재해"?`<span>${esc(x.acc||"재해구분 미입력")} · 휴업 ${esc(x.leave||"미입력")}</span>`:""}${x.state==="예정"&&due&&due!==x.date?`<span class="mono"${late?' style="color:var(--bad)"':""}>기한 ${esc(due)} ${dday(due)}</span>`:x.state==="예정"&&due?`<span class="mono"${late?' style="color:var(--bad)"':""}>${dday(due)}</span>`:""}${x.people?`<span>대상 ${esc(x.people)}명</span>`:""}${x.owner?`<span>담당 ${esc(x.owner)}</span>`:""}</div>
   <h3>${esc(x.title||"")}</h3>${x.content?`<p>${esc(x.content)}</p>`:""}</div>
   ${inDrawer&&db&&!readOnly?`<div class="side"><select class="i" style="width:auto;padding:3px 8px;font-size:12px" data-sst="${esc(x.id)}" aria-label="상태">${SAFETY_STATES.map(s=>`<option ${s===x.state?"selected":""}>${s}</option>`).join("")}</select><button class="btn sm" data-sed="${esc(x.id)}">수정</button><button class="btn sm danger" data-sdel="${esc(x.id)}">삭제</button></div>`:""}</div>`}
-function safetyForm(x){x=x||{date:today(),state:"예정",type:SAFETY_TYPES[0]};return `<form class="form card" style="padding:16px" id="dForm">
+function safetyForm(x){x=x||{date:today(),state:"예정",type:SAFETY_TYPES[0]};const types=SAFETY_TYPES.includes(x.type)?SAFETY_TYPES:[...SAFETY_TYPES,x.type];
+  return `<form class="form card" style="padding:16px" id="dForm">
   <h3 class="sec-t" style="margin:0">산업안전보건 ${x.id?"수정":"입력"}</h3>
-  <div class="row2"><label class="f">구분<select class="i" name="type">${SAFETY_TYPES.map(t=>`<option ${t===x.type?"selected":""}>${t}</option>`).join("")}</select></label><label class="f">상태<select class="i" name="state">${SAFETY_STATES.map(s=>`<option ${s===x.state?"selected":""}>${s}</option>`).join("")}</select></label></div>
-  <label class="f">일자 <span class="tiny muted">예정이면 예정일, 완료면 실시일</span><input class="i" type="date" name="date" value="${esc(x.date||"")}" required></label>
+  <div class="row2"><label class="f">구분<select class="i" name="type">${types.map(t=>`<option ${t===x.type?"selected":""}>${t}</option>`).join("")}</select></label><label class="f">상태<select class="i" name="state">${SAFETY_STATES.map(s=>`<option ${s===x.state?"selected":""}>${s}</option>`).join("")}</select></label></div>
+  <div class="row2" data-acc><label class="f">재해구분<select class="i" name="acc"><option value="">선택</option>${ACC_KINDS.map(t=>`<option ${t===x.acc?"selected":""}>${t}</option>`).join("")}</select></label><label class="f">휴업구분<select class="i" name="leave"><option value="">선택</option>${LEAVE_KINDS.map(t=>`<option ${t===x.leave?"selected":""}>${t}</option>`).join("")}</select></label></div>
+  <label class="f"><span data-dlabel>일자</span><input class="i" type="date" name="date" value="${esc(x.date||"")}" required></label>
+  <div class="guide" data-dueinfo></div>
   <label class="f">제목<input class="i" name="title" required placeholder="예) 하반기 정기 안전보건교육" value="${esc(x.title||"")}"></label>
-  <label class="f">내용<textarea class="i" name="content" rows="3" placeholder="교육 시간·방식, 검진 기관, 재해 경위·산재 신청 여부, 점검 결과 등">${esc(x.content||"")}</textarea></label>
+  <label class="f">내용<textarea class="i" name="content" rows="3" placeholder="교육 시간·방식, 검진 기관, 재해 경위·요양신청 여부, 점검 결과 등">${esc(x.content||"")}</textarea></label>
   <div class="row2"><label class="f">대상 인원(선택)<input class="i" type="number" name="people" min="0" step="1" value="${esc(x.people||"")}"></label><label class="f">담당자<input class="i" name="owner" placeholder="예) 배유진" value="${esc(x.owner||"")}"></label></div>
   <div style="display:flex;gap:8px"><button class="btn pri" type="submit">${x.id?"수정 저장":"등록"}</button><button class="btn" type="button" data-fcancel>취소</button></div></form>`}
+// 구분에 따라 입력 칸·안내 바꾸기
+function updSafetyForm(f){const v=k=>f.elements[k].value,x={type:v("type"),acc:v("acc"),leave:v("leave"),date:v("date"),state:v("state")};
+  $("[data-acc]",f).hidden=x.type!=="산업재해";
+  $("[data-dlabel]",f).textContent=x.type==="산업재해"?"재해 발생일":x.type==="안전보건개선계획 수립명령"?"명령일":"일자 (예정이면 예정일, 완료면 실시일)";
+  const due=dueOf(x),box=$("[data-dueinfo]",f);let h="";
+  if(x.type==="산업재해")h=!x.acc||!x.leave?"재해구분과 휴업구분을 고르면 산업재해조사표 제출 대상인지 알려 드립니다.":reportable(x)?`<b>산업재해조사표 제출 대상</b> · 제출기한 <b class="mono">${due} (${dday(due)})</b><br>사망 또는 3일 이상 휴업 재해는 발생일부터 1개월 이내 제출 (산업안전보건법 시행규칙 제73조). 제출하면 상태를 ‘완료’로 바꾸세요.`:`<b>산업재해조사표 비대상</b> (${x.acc==="출퇴근 재해"?"출퇴근 재해":"휴업 3일 미만"}). 그룹웨어 보고에서 빠지기 쉬우니 요양신청 통지와 대조하세요.`;
+  else if(x.type==="안전보건개선계획 수립명령")h=due?`제출기한 <b class="mono">${due} (${dday(due)})</b> · 명령일부터 60일 이내 제출 (산업안전보건법 시행규칙 제61조). 본사 안전관리자 현장 점검 필수. 제출하면 상태를 ‘완료’로 바꾸세요.`:"명령일을 넣으면 제출기한(명령일+60일)을 계산합니다.";
+  box.innerHTML=h;box.hidden=!h}
+// 사업장 안전보건 정보 (신규 사업장 체크리스트 + 비상연락망) — 사업장 메모 문서에 저장
+function sfDraftOf(s){if(S.dDirty&&S.sfDraft)return S.sfDraft;const w=memoOf(s.id);
+  return {ck:{...(w.checklist||{})},em:(w.emergency&&w.emergency.length?w.emergency:EMERG_ROLES.map(role=>({role,name:"",phone:""}))).map(r=>({...r}))}}
+function safetyInfo(s,can){const d=sfDraftOf(s),c=d.ck,due=c.start?addDays(c.start,30):"",dis=can?"":"disabled";
+  return `<section id="sfBox"><div style="display:flex;align-items:center;gap:10px"><h3 class="sec-t" style="margin:0">사업장 안전보건 정보</h3>${can?`<button class="btn sm pri" id="sfSave" style="margin-left:auto">안전보건 정보 저장</button>`:""}</div>
+    <h4 class="sub-t">신규 사업장 체크리스트</h4>
+    <div class="row2"><label class="f">사업 개시일<input class="i" type="date" data-ck="start" value="${esc(c.start||"")}" ${dis}><span class="tiny muted">${s.f["최초계약일"]&&!c.start?`급여기초 최초계약일: ${esc(s.f["최초계약일"])}`:"넣으면 최초 위험성평가 기한을 계산합니다"}</span></label>
+      <label class="f">고객사 반기 안전점검<select class="i" data-ck="half" ${dis}>${[["","선택"],["대상","대상"],["비대상","비대상"]].map(([v,l])=>`<option value="${v}" ${c.half===v?"selected":""}>${l}</option>`).join("")}</select><span class="tiny muted">대상이면 점검 전 현장 방문·서류 준비 일정을 잡으세요</span></label></div>
+    <div class="ckrow"><label class="ck"><input type="checkbox" data-ck="raDone" ${c.raDone?"checked":""} ${dis}> 최초 위험성평가 실시·제출</label>
+      <input class="i" type="date" data-ck="raDate" value="${esc(c.raDate||"")}" ${dis} aria-label="위험성평가 제출일" style="width:auto">
+      <span class="tiny ${due&&!c.raDone&&due<today()?"bad":"muted"}">${c.raDone?"완료":due?`기한 ${due} (${dday(due)}) · 사업 개시일부터 30일`:"사업 개시일을 넣으면 기한이 표시됩니다"}</span></div>
+    <h4 class="sub-t" style="display:flex;align-items:center;gap:8px">비상연락망<button class="btn sm" id="emPrint" type="button" style="margin-left:auto">A4 인쇄</button></h4>
+    <table class="emtbl"><thead><tr><th>구분</th><th>이름·기관</th><th>연락처</th>${can?"<th></th>":""}</tr></thead><tbody>${d.em.map((r,i)=>`<tr data-em="${i}"><td><input class="i" data-f="role" value="${esc(r.role)}" ${dis} aria-label="구분"></td><td><input class="i" data-f="name" value="${esc(r.name)}" ${dis} aria-label="이름·기관"></td><td><input class="i mono" data-f="phone" value="${esc(r.phone)}" ${dis} aria-label="연락처" inputmode="tel"></td>${can?`<td><button class="btn sm" type="button" data-emdel="${i}" aria-label="줄 삭제">삭제</button></td>`:""}</tr>`).join("")}</tbody></table>
+    ${can?`<button class="btn sm" type="button" id="emAdd" style="margin-top:6px">연락처 줄 추가</button>`:""}
+    <p class="tiny muted" style="margin:6px 0 0">출력해서 현장에 비치하고 중대재해 대비·대응 매뉴얼 첨부자료로 쓰세요.</p></section>`}
+function readSf(box){const ck={};$$("[data-ck]",box).forEach(el=>{ck[el.dataset.ck]=el.type==="checkbox"?el.checked:el.value});
+  return {ck,em:$$("tr[data-em]",box).map(tr=>({role:$('[data-f=role]',tr).value.trim(),name:$('[data-f=name]',tr).value.trim(),phone:$('[data-f=phone]',tr).value.trim()}))}}
+function printEmergency(s,em){const w=window.open("","_blank");if(!w){toast("팝업이 막혀 있습니다. 브라우저에서 팝업을 허용해 주세요.");return}
+  const rows=em.filter(r=>r.role||r.name||r.phone);
+  w.document.write(`<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>${esc(s.f[NAME]||"")} 비상연락망</title><style>
+    @page{size:A4;margin:18mm}body{font-family:"Malgun Gothic","Apple SD Gothic Neo",sans-serif;color:#111}
+    h1{font-size:24pt;margin:0 0 3mm}.sub{color:#444;margin:0 0 8mm;font-size:11pt}
+    table{width:100%;border-collapse:collapse;font-size:13pt}th,td{border:1px solid #333;padding:4mm 3mm;text-align:left}thead th{background:#e9edf2}
+    td:first-child{font-weight:700;width:32%}td:last-child{font-size:15pt;font-weight:700;letter-spacing:.02em}
+    .call{margin-top:8mm;border:2px solid #b42323;color:#b42323;padding:4mm;font-size:14pt;font-weight:700;text-align:center}</style></head><body>
+    <h1>${esc(s.f[NAME]||"")} 비상연락망</h1><p class="sub">${esc(s.f["사업장 주소지(실근무지)"]||"")}${s.f["사업장 주소지(실근무지)"]?" · ":""}작성일 ${today()}</p>
+    <table><thead><tr><th>구분</th><th>이름·기관</th><th>연락처</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.role)}</td><td>${esc(r.name)}</td><td>${esc(r.phone)}</td></tr>`).join("")}</tbody></table>
+    <div class="call">사고 발생 시: 119 신고 → 현장 관리자 → 본사·지사 담당 순으로 즉시 연락</div>
+    <script>window.onload=function(){window.print()}<\/script></body></html>`);w.document.close()}
 function drawerSafety(s,list){const can=db&&!readOnly,F=S.dForm;
-  return (F&&F.kind==="safety"?safetyForm(F.id&&S.safety.find(x=>x.id===F.id)):can?`<div style="display:flex;justify-content:flex-end"><button class="btn sm pri" data-fnew="safety">안전보건 기록 추가</button></div>`:"")+
-    (list.length?`<div class="card list">${list.slice().sort(safetySort).map(x=>safetyRow(x,true)).join("")}</div>`:`<div class="empty"><b>산업안전보건 기록이 없습니다</b>${can?"‘안전보건 기록 추가’를 눌러 교육·검진 일정 등을 입력하세요.":""}</div>`)}
+  return safetyInfo(s,can)+`<section><h3 class="sec-t">안전보건 기록</h3><div style="display:flex;flex-direction:column;gap:10px">`+(F&&F.kind==="safety"?safetyForm(F.id&&S.safety.find(x=>x.id===F.id)):can?`<div style="display:flex;justify-content:flex-end"><button class="btn sm pri" data-fnew="safety">안전보건 기록 추가</button></div>`:"")+
+    (list.length?`<div class="card list">${list.slice().sort(safetySort).map(x=>safetyRow(x,true)).join("")}</div>`:`<div class="empty"><b>산업안전보건 기록이 없습니다</b>${can?"‘안전보건 기록 추가’를 눌러 교육·검진 일정, 산업재해 등을 입력하세요.":""}</div>`)+`</div></section>`}
 
 /* ===== 월별 특이사항 (청구 특이사항 · 급여 특이사항 공통) ===== */
 // 메뉴마다 다른 것만 여기에. 저장 위치(Supabase 테이블 이름)는 키와 같음
@@ -335,14 +404,16 @@ function refRec(k){const R=REC[k],F=S.recF[k],p=R.p,body=$(`#${p}body`);if(!body
 
 /* ===== 사업장 상세 안의 노무 문제·급여 특이사항 입력 ===== */
 function strip(o){const c={...o};delete c.id;return c}
-function issueForm(i){i=i||{date:today(),risk:"보통",status:STATUSES[0],type:ISSUE_TYPES[0]};return `<form class="form card" style="padding:16px" id="dForm">
+function issueForm(i){i=i||{date:today(),status:STATUSES[0],type:ISSUE_TYPES[0]};const types=ISSUE_TYPES.includes(i.type)?ISSUE_TYPES:[...ISSUE_TYPES,i.type];
+  return `<form class="form card" style="padding:16px" id="dForm">
   <h3 class="sec-t" style="margin:0">${i.id?"노무 문제 수정":"노무 문제 입력"}</h3>
-  <div class="row2"><label class="f">발생일<input class="i" type="date" name="date" value="${esc(i.date||"")}" required></label><label class="f">유형<select class="i" name="type">${ISSUE_TYPES.map(t=>`<option ${t===i.type?"selected":""}>${t}</option>`).join("")}</select></label></div>
+  <div class="row2"><label class="f">발생일<input class="i" type="date" name="date" value="${esc(i.date||"")}" required></label><label class="f">유형<select class="i" name="type">${types.map(t=>`<option ${t===i.type?"selected":""}>${t}</option>`).join("")}</select></label></div>
+  <div class="guide warn" data-harass ${i.type===HARASS?"":"hidden"}><b>실명·구체적 행위를 적지 마세요.</b> 직장 내 괴롭힘·성희롱은 회사에 비밀유지의무가 있고 위반 시 과태료 대상입니다 (근로기준법 제76조의3 제7항, 남녀고용평등법 제14조 제7항). 관련자 <b>인원수만</b> 적어 주세요. 예) 신고인 1명, 피신고인 1명, 참고인 2명</div>
   <label class="f">제목<input class="i" name="title" required placeholder="예) 연장근로수당 미지급 문의" value="${esc(i.title||"")}"></label>
   <label class="f">내용<textarea class="i" name="content" rows="4" placeholder="경위, 관련 직원, 요구사항 등">${esc(i.content||"")}</textarea></label>
-  <div class="row2"><label class="f">위험도<select class="i" name="risk">${RISKS.map(r=>`<option ${r===i.risk?"selected":""}>${r}</option>`).join("")}</select></label><label class="f">처리상태<select class="i" name="status">${STATUSES.map(s=>`<option ${s===i.status?"selected":""}>${s}</option>`).join("")}</select></label></div>
+  <div class="row2"><label class="f">지출 (예정)금액 (원)<input class="i mono" type="number" name="cost" min="0" step="1" placeholder="예) 3000000" value="${esc(i.cost||"")}"><span class="tiny muted">예상 임금·과태료 등 회사가 쓸 돈</span></label><label class="f">처리상태<select class="i" name="status">${STATUSES.map(s=>`<option ${s===i.status?"selected":""}>${s}</option>`).join("")}</select></label></div>
   <label class="f">담당자<input class="i" name="owner" placeholder="예) 배유진" value="${esc(i.owner||"")}"></label>
-  <label class="f">처리 결과 / 조치<textarea class="i" name="result" rows="2" placeholder="완료 시 결과를 남겨 주세요">${esc(i.result||"")}</textarea></label>
+  <label class="f">처리 결과 / 조치<textarea class="i" name="result" rows="2" placeholder="종결 시 결과를 남겨 주세요">${esc(i.result||"")}</textarea></label>
   <div style="display:flex;gap:8px"><button class="btn pri" type="submit">${i.id?"수정 저장":"등록"}</button><button class="btn" type="button" data-fcancel>취소</button></div></form>`}
 function recForm(k,n){const R=REC[k];n=n||{month:S.recF[k].month||thisMonth(),type:R.types[0]};return `<form class="form card" style="padding:16px" id="dForm">
   <h3 class="sec-t" style="margin:0">${R.title} ${n.id?"수정":"입력"}</h3>
@@ -413,18 +484,29 @@ function bindDrawerRecords(root,s){const body=$(".drawer .db",root);if(!body)ret
     const ndl=t.closest("[data-rdel]");if(ndl){armDelete(ndl,async()=>{try{await db.doc(ndl.dataset.k+"/"+ndl.dataset.rdel).delete();toast("삭제했습니다");redraw()}catch(x){err(x)}});return}
     if(t.id==="wnSave"){const d={ordinary:$("#wnOrdinary").value,severance:$("#wnSeverance").value};
       (async()=>{try{await db.doc("wagenotes/"+s.id).set({...memoOf(s.id),...d,updatedAt:new Date().toISOString(),by:uid||""});S.dDirty=false;S.wnDraft=null;toast("메모를 저장했습니다");redraw()}catch(x){err(x)}})()}
+    if(t.id==="emAdd"){S.sfDraft=readSf($("#sfBox"));S.sfDraft.em.push({role:"",name:"",phone:""});S.dDirty=true;redraw();$$("#sfBox tr[data-em] [data-f=role]").pop()?.focus();return}
+    const emd=t.closest("[data-emdel]");if(emd){S.sfDraft=readSf($("#sfBox"));S.sfDraft.em.splice(+emd.dataset.emdel,1);S.dDirty=true;redraw();return}
+    if(t.id==="emPrint"){printEmergency(s,readSf($("#sfBox")).em);return}
+    if(t.id==="sfSave"){const d=readSf($("#sfBox")),ck={start:d.ck.start||"",half:d.ck.half||"",raDone:!!d.ck.raDone,raDate:d.ck.raDate||""};
+      (async()=>{try{await db.doc("wagenotes/"+s.id).set({...memoOf(s.id),checklist:ck,emergency:d.em.filter(r=>r.role||r.name||r.phone),safetyAt:new Date().toISOString(),by:uid||""});S.dDirty=false;S.sfDraft=null;toast("안전보건 정보를 저장했습니다");redraw()}catch(x){err(x)}})();return}
     if(t.id==="mbSave"){const M=MEMO_BOX[t.dataset.k],v=$("#mbText").value;
       (async()=>{try{await db.doc("wagenotes/"+s.id).set({...memoOf(s.id),[M.field]:v,[M.field+"At"]:new Date().toISOString(),by:uid||""});S.dDirty=false;S.bmDraft=null;toast(M.title+"을 저장했습니다");redraw()}catch(x){err(x)}})()}});
   body.addEventListener("change",async e=>{const ss=e.target.closest("[data-sst]");if(ss){try{await db.doc("safety/"+ss.dataset.sst).update({state:ss.value,updatedAt:new Date().toISOString()});toast("‘"+ss.value+"’(으)로 바꿨습니다")}catch(x){err(x)}return}
     const st=e.target.closest("[data-st]");if(!st)return;
     try{await db.doc("issues/"+st.dataset.st).update({status:st.value,updatedAt:new Date().toISOString()});toast("상태를 ‘"+st.value+"’(으)로 바꿨습니다")}catch(x){err(x)}});
   body.addEventListener("input",e=>{if(e.target.id==="wnOrdinary"||e.target.id==="wnSeverance"){S.dDirty=true;S.wnDraft={ordinary:$("#wnOrdinary").value,severance:$("#wnSeverance").value}}
-    if(e.target.id==="mbText"){S.dDirty=true;S.bmDraft=e.target.value}});
-  const f=$("#dForm",root);if(f)f.addEventListener("submit",async e=>{e.preventDefault();const v=k=>(f.elements[k].value||"").trim(),now=new Date().toISOString(),F=S.dForm;
-    try{if(F.kind==="issue"){const d={siteId:s.id,date:v("date"),type:v("type"),title:v("title"),content:v("content"),status:v("status"),risk:v("risk"),owner:v("owner"),result:v("result"),updatedAt:now};
+    if(e.target.id==="mbText"){S.dDirty=true;S.bmDraft=e.target.value}
+    if(e.target.closest("#sfBox")){S.dDirty=true;S.sfDraft=readSf($("#sfBox"))}});
+  body.addEventListener("change",e=>{if(e.target.closest("#sfBox")){S.dDirty=true;S.sfDraft=readSf($("#sfBox"))}});
+  const f=$("#dForm",root);
+  if(f&&S.dForm.kind==="safety"){updSafetyForm(f);f.addEventListener("change",()=>updSafetyForm(f));f.addEventListener("input",()=>updSafetyForm(f))}
+  if(f&&S.dForm.kind==="issue")f.elements.type.addEventListener("change",()=>{const h=f.elements.type.value===HARASS;$("[data-harass]",f).hidden=!h;
+    if(h&&!f.elements.content.value.trim())f.elements.content.value="신고인 0명, 피신고인 0명, 참고인 0명"});
+  if(f)f.addEventListener("submit",async e=>{e.preventDefault();const v=k=>(f.elements[k].value||"").trim(),now=new Date().toISOString(),F=S.dForm;
+    try{if(F.kind==="issue"){const d={siteId:s.id,date:v("date"),type:v("type"),title:v("title"),content:v("content"),status:v("status"),cost:v("cost")?Math.round(+v("cost")):0,owner:v("owner"),result:v("result"),updatedAt:now};
         if(F.id){const o=S.issues.find(x=>x.id===F.id)||{};await db.doc("issues/"+F.id).set({...strip(o),...d});toast("수정했습니다")}else{await db.collection("issues").add({...d,by:uid||"",createdAt:now});toast("등록했습니다")}}
-      else if(F.kind==="safety"){const d={siteId:s.id,type:v("type"),state:v("state"),date:v("date"),title:v("title"),content:v("content"),people:v("people")?Math.round(+v("people")):"",owner:v("owner"),updatedAt:now};
-        if(F.id){const o=S.safety.find(x=>x.id===F.id)||{};await db.doc("safety/"+F.id).set({...strip(o),...d});toast("수정했습니다")}else{await db.collection("safety").add({...d,by:uid||"",createdAt:now});toast("등록했습니다")}}
+      else if(F.kind==="safety"){const isAcc=v("type")==="산업재해";const d={siteId:s.id,type:v("type"),state:v("state"),date:v("date"),acc:isAcc?v("acc"):"",leave:isAcc?v("leave"):"",title:v("title"),content:v("content"),people:v("people")?Math.round(+v("people")):"",owner:v("owner"),updatedAt:now};
+        if(F.id){const o=S.safety.find(x=>x.id===F.id)||{};await db.doc("safety/"+F.id).set({...strip(o),...d});toast("수정했습니다")}else{await db.collection("safety").add({...d,by:uid||"",createdAt:now});toast(reportable(d)?`등록했습니다. 산업재해조사표 제출기한 ${dueOf(d)} (${dday(dueOf(d))})`:"등록했습니다")}}
       else{const d={siteId:s.id,month:v("month"),type:v("type"),title:v("title"),content:v("content"),amount:+v("amount")||0,repeat:f.elements.repeat.checked,updatedAt:now};
         if(F.id){const o=S[F.kind].find(x=>x.id===F.id)||{};await db.doc(F.kind+"/"+F.id).set({...strip(o),...d});toast("수정했습니다")}else{await db.collection(F.kind).add({...d,by:uid||"",createdAt:now});toast("등록했습니다")}}
       S.dForm=null;redraw()}catch(x){err(x)}})}
@@ -435,12 +517,12 @@ const XL={
   sites:{title:"급여기초",cols:()=>[["ID","id"],...COLS.map(k=>[lbl(k),k])]},
   bills:{title:"청구 특이사항",cols:()=>recCols("bills")},
   notes:{title:"급여 특이사항",cols:()=>recCols("notes")},
-  issues:{title:"노무 문제",cols:()=>[["ID","id"],["사업장명","site"],["발생일","date"],["유형","type"],["제목","title"],["내용","content"],["위험도","risk"],["처리상태","status"],["담당자","owner"],["처리 결과","result"]]},
-  safety:{title:"산업안전보건관리",cols:()=>[["ID","id"],["사업장명","site"],["일자","date"],["구분","type"],["상태","state"],["제목","title"],["내용","content"],["대상 인원","people"],["담당자","owner"]]}};
+  issues:{title:"노무 문제",cols:()=>[["ID","id"],["사업장명","site"],["발생일","date"],["유형","type"],["제목","title"],["내용","content"],["지출(예정)금액","cost"],["처리상태","status"],["담당자","owner"],["처리 결과","result"]]},
+  safety:{title:"산업안전보건관리",cols:()=>[["ID","id"],["사업장명","site"],["일자","date"],["구분","type"],["재해구분","acc"],["휴업구분","leave"],["상태","state"],["제목","title"],["내용","content"],["대상 인원","people"],["담당자","owner"]]}};
 const recCols=k=>[["ID","id"],["사업장명","site"],[REC[k].month,"month"],["구분","type"],["제목","title"],["내용","content"],["금액","amount"],["매월 반복","repeat"]];
 function xlRows(k){const cols=XL[k].cols();let list;
   if(k==="sites")list=sitesSorted().map(s=>cols.map(([,f])=>f==="id"?s.id:(s.f[f]||"")));
-  else list=S[k].slice().sort(k==="issues"||k==="safety"?((a,b)=>(b.date||"").localeCompare(a.date||"")):byMonth).map(r=>cols.map(([,f])=>f==="id"?r.id:f==="site"?siteName(r.siteId):f==="repeat"?(r.repeat?"Y":""):f==="amount"?(r.amount||""):(r[f]||"")));
+  else list=S[k].slice().sort(k==="issues"||k==="safety"?((a,b)=>(b.date||"").localeCompare(a.date||"")):byMonth).map(r=>cols.map(([,f])=>f==="id"?r.id:f==="site"?siteName(r.siteId):f==="repeat"?(r.repeat?"Y":""):f==="amount"||f==="cost"?(r[f]||""):(r[f]||"")));
   return [cols.map(c=>c[0]),...list]}
 // 여러 시트를 한 파일로 주고받는 메뉴
 const XL_GROUP={labor:{title:"노무관리",keys:["issues","safety"]}};
@@ -486,10 +568,13 @@ function xlPlan(k,rows){const cols=XL[k].cols(),plan={add:[],upd:[],same:0,errs:
       else if(key==="repeat")x=truthy(x);
       else if(key==="people"){const n=String(x).replace(/[,\s명]/g,"");if(n&&!/^\d+$/.test(n))return err(`대상 인원이 숫자가 아닙니다: ${val}`);x=n?+n:""}
       else if(key==="state"){if(x&&!SAFETY_STATES.includes(x))return err(`상태는 ${SAFETY_STATES.join("/")} 중 하나여야 합니다: ${x}`);x=x||SAFETY_STATES[0]}
-      else if(key==="risk"){if(x&&!RISKS.includes(x))return err(`위험도는 ${RISKS.join("/")} 중 하나여야 합니다: ${x}`);x=x||"보통"}
-      else if(key==="status"){if(x&&!STATUSES.includes(x))return err(`처리상태는 ${STATUSES.join("/")} 중 하나여야 합니다: ${x}`);x=x||STATUSES[0]}
+      else if(key==="cost"){const n=String(x).replace(/[,\s원]/g,"");if(n&&!/^\d+(\.\d+)?$/.test(n))return err(`지출(예정)금액이 숫자가 아닙니다: ${val}`);x=n?Math.round(+n):0}
+      else if(key==="status"){x=OLD_ISSUE.status[x]||x;if(x&&!STATUSES.includes(x))return err(`처리상태는 ${STATUSES.join("/")} 중 하나여야 합니다: ${x}`);x=x||STATUSES[0]}
+      else if(key==="type"&&k==="issues")x=OLD_ISSUE.type[x]||x;
+      else if(key==="acc"){if(x&&!ACC_KINDS.includes(x))return err(`재해구분은 ${ACC_KINDS.join("/")} 중 하나여야 합니다: ${x}`)}
+      else if(key==="leave"){if(x&&!LEAVE_KINDS.includes(x))return err(`휴업구분은 ${LEAVE_KINDS.join("/")} 중 하나여야 합니다: ${x}`)}
       if(x===""&&!(key in d))continue;d[key]=x}
-    if(k==="issues"){d.risk=d.risk||"보통";d.status=d.status||STATUSES[0];d.type=d.type||ISSUE_TYPES[0]}else if(k==="safety"){d.state=d.state||SAFETY_STATES[0];d.type=d.type||SAFETY_TYPES[0]}else{d.type=d.type||REC[k].types[0];d.amount=d.amount||0;d.repeat=!!d.repeat}
+    if(k==="issues"){d.status=d.status||STATUSES[0];d.type=d.type||ISSUE_TYPES[0]}else if(k==="safety"){d.state=d.state||SAFETY_STATES[0];d.type=d.type||SAFETY_TYPES[0]}else{d.type=d.type||REC[k].types[0];d.amount=d.amount||0;d.repeat=!!d.repeat}
     if(old&&JSON.stringify(d)===JSON.stringify(strip(old))){plan.same++;return}
     (old?plan.upd:plan.add).push({id:old?old.id:null,name:`${site.f[NAME]} · ${d.title}`,data:d})});
   return plan}
@@ -545,7 +630,7 @@ async function boot(){
   else db=window.LocalDB;
   render();
   sub("sites",a=>{S.sites=a.map(x=>({...x,f:x.f||{}}));applyFixes()});
-  sub("issues",a=>S.issues=a);
+  sub("issues",a=>S.issues=a.map(normIssue));
   sub("safety",a=>S.safety=a);
   sub("bills",a=>S.bills=a);
   sub("notes",a=>S.notes=a);
