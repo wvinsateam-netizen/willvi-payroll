@@ -429,18 +429,21 @@ function drawerIssues(s,iss){const can=db&&!readOnly,F=S.dForm;
 // 사업장 메모(wagenotes 문서): 통상임금·퇴직금 메모, 청구방식, 급여정산을 사업장별로 함께 저장
 const memoOf=id=>{const w={...(S.wagenotes[id]||{})};delete w.id;return w};
 // 특이사항 탭 맨 위 칸: 급여기초의 관련 값 + 사업장별 설명
+// parts: 설명 칸들 (legacy: 칸을 나누기 전 저장 값이 있던 필드 — 새 칸이 비어 있으면 보여 줌)
 const MEMO_BOX={
-  bills:{field:"billing",title:"청구방식",label:"청구 방식 설명",hint:"단가 구조(시급·월정액·인당 관리비), 청구 기준, 세금계산서 발행 시기 등",
-    ph:"예) 인원 × 월 단가 + 인당 관리비 5만원, 매월 말일 마감 후 익월 5일 세금계산서 발행",
+  bills:{field:"billing",title:"청구방식",
+    parts:[{f:"billing",label:"청구 방식 설명",hint:"단가 구조(시급·월정액·인당 관리비), 청구 기준, 세금계산서 발행 시기 등",ph:"예) 인원 × 월 단가 + 인당 관리비 5만원, 매월 말일 마감 후 익월 5일 세금계산서 발행"}],
     info:[["청구형태 (인원, 콜, 업무도급, 성과유지 등)","청구형태"],["청구일","청구일"],["월청구분 당사입금일","월청구분 당사입금일"]]},
-  notes:{field:"payroll",title:"급여정산",label:"급여 정산 방식 설명",hint:"근태 마감일, 급여 산정 기준, 수당·공제 정산, 소급·퇴직 정산 처리 방식 등",
-    ph:"예) 전월 1일~말일 근태를 5일 마감, 매월 10일 지급. 연장수당은 실적 확인 후 익월 정산",
+  notes:{field:"payroll",title:"급여정산",
+    parts:[{f:"payrollBiz",label:"급여 정산 방식 설명 · 사업부",hint:"근태 집계·마감, 현장 수당 기준, 인사팀에 넘기는 자료와 일정 등",ph:"예) 매월 말일 근태 마감 후 다음 달 3일까지 근무표·수당 내역을 인사팀에 전달"},
+      {f:"payrollHr",legacy:"payroll",label:"급여 정산 방식 설명 · 인사팀",hint:"급여 산정 기준, 수당·공제 정산, 소급·퇴직 정산 처리 방식 등",ph:"예) 전월 1일~말일 근태로 매월 10일 지급. 연장수당은 실적 확인 후 익월 정산"}],
     info:[["급여일","급여일"],["급여산정 시작일","급여산정 시작일"],["급여산정 종료일","급여산정 종료일"],["퇴직금 적립방식","퇴직금 적립방식"],["연차수당 적립방식","연차수당 적립방식"]]}};
-function memoBox(k,s,can){const M=MEMO_BOX[k],w=memoOf(s.id),txt=S.dDirty&&S.bmDraft!=null?S.bmDraft:(w[M.field]||""),at=w[M.field+"At"];
+const partVal=(w,P)=>w[P.f]!==undefined?w[P.f]:P.legacy?(w[P.legacy]||""):"";
+function memoBox(k,s,can){const M=MEMO_BOX[k],w=memoOf(s.id),at=w[M.field+"At"],dr=S.dDirty&&S.bmDraft?S.bmDraft:null;
   const info=M.info.filter(([f])=>s.f[f]);
   return `<section id="mbBox"><div style="display:flex;align-items:center;gap:10px"><h3 class="sec-t" style="margin:0">${M.title}</h3><span class="tiny muted">${at?`마지막 저장 ${esc(at.slice(0,10))}`:""}</span>${can?`<button class="btn sm pri" id="mbSave" data-k="${k}" style="margin-left:auto">${M.title} 저장</button>`:""}</div>
     ${info.length?`<dl class="kv" style="margin-top:6px">${info.map(([f,l])=>`<dt>${esc(l)}</dt><dd>${esc(s.f[f])}</dd>`).join("")}</dl>`:""}
-    <label class="f" style="margin-top:8px">${M.label}<span class="tiny muted">${M.hint}</span><textarea class="i" id="mbText" rows="4" ${can?"":"disabled"} placeholder="${esc(M.ph)}">${esc(txt)}</textarea></label></section>`}
+    ${M.parts.map(P=>`<label class="f" style="margin-top:8px">${P.label}<span class="tiny muted">${P.hint}</span><textarea class="i" data-mb="${P.f}" rows="4" ${can?"":"disabled"} placeholder="${esc(P.ph)}">${esc(dr&&dr[P.f]!=null?dr[P.f]:partVal(w,P))}</textarea></label>`).join("")}</section>`}
 // 통상임금·퇴직금 관련 법적 책임 참고표 (2026년 10월 기준 요약 — 법 개정 시 여기만 고치면 됨)
 const LEGAL_REF_DATE="2026년 10월";
 const LEGAL_REF=[
@@ -489,13 +492,13 @@ function bindDrawerRecords(root,s){const body=$(".drawer .db",root);if(!body)ret
     if(t.id==="emPrint"){printEmergency(s,readSf($("#sfBox")).em);return}
     if(t.id==="sfSave"){const d=readSf($("#sfBox")),ck={start:d.ck.start||"",half:d.ck.half||"",raDone:!!d.ck.raDone,raDate:d.ck.raDate||""};
       (async()=>{try{await db.doc("wagenotes/"+s.id).set({...memoOf(s.id),checklist:ck,emergency:d.em.filter(r=>r.role||r.name||r.phone),safetyAt:new Date().toISOString(),by:uid||""});S.dDirty=false;S.sfDraft=null;toast("안전보건 정보를 저장했습니다");redraw()}catch(x){err(x)}})();return}
-    if(t.id==="mbSave"){const M=MEMO_BOX[t.dataset.k],v=$("#mbText").value;
-      (async()=>{try{await db.doc("wagenotes/"+s.id).set({...memoOf(s.id),[M.field]:v,[M.field+"At"]:new Date().toISOString(),by:uid||""});S.dDirty=false;S.bmDraft=null;toast(M.title+"을 저장했습니다");redraw()}catch(x){err(x)}})()}});
+    if(t.id==="mbSave"){const M=MEMO_BOX[t.dataset.k],v={};$$("#mbBox [data-mb]").forEach(el=>{v[el.dataset.mb]=el.value});
+      (async()=>{try{await db.doc("wagenotes/"+s.id).set({...memoOf(s.id),...v,[M.field+"At"]:new Date().toISOString(),by:uid||""});S.dDirty=false;S.bmDraft=null;toast(M.title+"을 저장했습니다");redraw()}catch(x){err(x)}})()}});
   body.addEventListener("change",async e=>{const ss=e.target.closest("[data-sst]");if(ss){try{await db.doc("safety/"+ss.dataset.sst).update({state:ss.value,updatedAt:new Date().toISOString()});toast("‘"+ss.value+"’(으)로 바꿨습니다")}catch(x){err(x)}return}
     const st=e.target.closest("[data-st]");if(!st)return;
     try{await db.doc("issues/"+st.dataset.st).update({status:st.value,updatedAt:new Date().toISOString()});toast("상태를 ‘"+st.value+"’(으)로 바꿨습니다")}catch(x){err(x)}});
   body.addEventListener("input",e=>{if(e.target.id==="wnOrdinary"||e.target.id==="wnSeverance"){S.dDirty=true;S.wnDraft={ordinary:$("#wnOrdinary").value,severance:$("#wnSeverance").value}}
-    if(e.target.id==="mbText"){S.dDirty=true;S.bmDraft=e.target.value}
+    if(e.target.dataset.mb){S.dDirty=true;S.bmDraft={...(S.bmDraft||{}),[e.target.dataset.mb]:e.target.value}}
     if(e.target.closest("#sfBox")){S.dDirty=true;S.sfDraft=readSf($("#sfBox"))}});
   body.addEventListener("change",e=>{if(e.target.closest("#sfBox")){S.dDirty=true;S.sfDraft=readSf($("#sfBox"))}});
   const f=$("#dForm",root);
