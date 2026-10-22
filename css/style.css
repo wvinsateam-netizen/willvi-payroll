@@ -196,3 +196,4 @@ details.legal ul{padding-left:18px;font-size:12.5px;display:flex;flex-direction:
 .emtbl td{padding:4px 6px;max-width:none;vertical-align:middle}
 .emtbl input.i{padding:5px 7px;font-size:13px}
 .emtbl td:first-child{width:30%}
+.who{color:var(--brand);font-weight:800;font-size:13px}
