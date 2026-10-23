@@ -388,18 +388,18 @@ function refRec(k){const R=REC[k],F=S.recF[k],p=R.p,body=$(`#${p}body`);if(!body
   updCs();const rows=sitesIn().map(s=>{const mine=all.filter(n=>n.siteId===s.id&&(!F.type||n.type===F.type));const nameHit=textHit(q,s.f[NAME]);
       const list=nameHit?mine:mine.filter(n=>textHit(q,n.title,n.content));const inM=list.filter(n=>inMonth(n,F.month));
       // 급여 특이사항은 통상임금·퇴직금 메모도 표에 보여 줌
-      const w=k==="notes"?memoOf(s.id):{},wn=!!(w.ordinary||w.severance),wnHit=wn&&!F.type&&textHit(q,w.ordinary,w.severance);
-      return {s,list,inM,w,wn,hit:nameHit||list.length||wnHit}})
+      const w=k==="notes"?memoOf(s.id):{},wo=k==="notes"?wnText(w,"ordinary"):"",ws=k==="notes"?wnText(w,"severance"):"",wn=!!(wo||ws),wnHit=wn&&!F.type&&textHit(q,wo,ws);
+      return {s,list,inM,wo,ws,wn,hit:nameHit||list.length||wnHit}})
     .filter(r=>r.hit&&(F.month||F.type?r.inM.length||!F.only&&!F.type:!F.only||r.list.length||r.wn));
   rows.sort((a,b)=>b.inM.length-a.inM.length||(b.list.slice().sort(byMonth)[0]?.month||"").localeCompare(a.list.slice().sort(byMonth)[0]?.month||"")||(a.s.order??999)-(b.s.order??999));
   const tot=rows.reduce((n,r)=>n+r.inM.length,0);
   $(`#${p}count`).innerHTML=`<b>${rows.length}</b>곳 · ${F.month?F.month.replace("-",".")+" ":""}특이사항 <b>${tot}</b>건`;
   const n=v=>v?`<span class="num-b">${v}</span>`:`<span class="muted">0</span>`;
   const memo=v=>v?`<span title="${esc(v)}">${esc(v)}</span>`:`<span class="muted">—</span>`;
-  body.innerHTML=rows.length?rows.map(({s,list,inM,w})=>{const last=list.slice().sort(byMonth)[0];
+  body.innerHTML=rows.length?rows.map(({s,list,inM,wo,ws})=>{const last=list.slice().sort(byMonth)[0];
       return `<tr data-id="${esc(s.id)}"><td>${hl(s.f[NAME]||"(이름 없음)",F.q.trim())}</td><td>${esc(s.f["소속부서"]||"")}</td>
         <td class="num">${n(inM.length)}</td><td class="num">${n(list.filter(x=>x.repeat).length)}</td><td class="num">${n(list.length)}</td>
-        <td class="mono">${last?esc(last.month||""):""}</td><td class="clip">${last?esc(last.title||""):`<span class="muted">—</span>`}</td>${k==="notes"?`<td class="clip">${memo(w.ordinary)}</td><td class="clip">${memo(w.severance)}</td>`:""}</tr>`}).join("")
+        <td class="mono">${last?esc(last.month||""):""}</td><td class="clip">${last?esc(last.title||""):`<span class="muted">—</span>`}</td>${k==="notes"?`<td class="clip">${memo(wo)}</td><td class="clip">${memo(ws)}</td>`:""}</tr>`}).join("")
     :`<tr><td colspan="${k==="notes"?9:7}"><div class="empty"><b>${all.length?"조건에 맞는 사업장이 없습니다":`아직 입력된 ${R.title}이 없습니다`}</b>${all.length?`${R.month}이나 필터를 바꿔 보세요.`:"‘전체 사업장’을 누르고 사업장을 골라 첫 특이사항을 입력하세요."}</div></td></tr>`}
 
 /* ===== 사업장 상세 안의 노무 문제·급여 특이사항 입력 ===== */
@@ -438,6 +438,13 @@ const MEMO_BOX={
     parts:[{f:"payrollBiz",tag:"사업부",label:"급여 정산 방식 설명",hint:"근태 집계·마감, 현장 수당 기준, 인사팀에 넘기는 자료와 일정 등",ph:"예) 매월 말일 근태 마감 후 다음 달 3일까지 근무표·수당 내역을 인사팀에 전달"},
       {f:"payrollHr",legacy:"payroll",tag:"인사팀",label:"급여 정산 방식 설명",hint:"급여 산정 기준, 수당·공제 정산, 소급·퇴직 정산 처리 방식 등",ph:"예) 전월 1일~말일 근태로 매월 10일 지급. 연장수당은 실적 확인 후 익월 정산"}],
     info:[["급여일","급여일"],["급여산정 시작일","급여산정 시작일"],["급여산정 종료일","급여산정 종료일"],["퇴직금 적립방식","퇴직금 적립방식"],["연차수당 적립방식","연차수당 적립방식"]]}};
+// 통상임금·퇴직금 메모: 항목마다 [인사팀]·[사업부] 칸. 예전 한 칸 메모(ordinary·severance)는 [인사팀] 칸으로 보여 줌
+const WN_ITEMS=[{f:"ordinary",label:"통상임금 항목이나 포함하지 않는 임금항목",ph:"사업장에서 통상임금에 포함/제외한 임금항목과 그 근거를 적어 주세요"},
+  {f:"severance",label:"퇴직금 평균임금(통상임금)이나 포함하지 않는 임금항목",ph:"퇴직금 평균임금 산정 시 포함/제외한 임금항목과 그 근거를 적어 주세요"}];
+const WN_WHO=[["Hr","인사팀","임금체불에 대한 문제 발생이 있는 급여항목"],["Biz","사업부","현장에서 지급하는 수당·상여 등 확인이 필요한 급여항목"]];
+const wnVal=(w,f,t)=>w[f+t]!==undefined?w[f+t]:t==="Hr"?(w[f]||""):"";
+const wnText=(w,f)=>WN_WHO.map(([t,n])=>{const v=wnVal(w,f,t);return v?`[${n}] ${v}`:""}).filter(Boolean).join(" / ");
+const readWn=()=>{const v={};$$("#wnBox [data-wn]").forEach(el=>{v[el.dataset.wn]=el.value});return v};
 const partVal=(w,P)=>w[P.f]!==undefined?w[P.f]:P.legacy?(w[P.legacy]||""):"";
 function memoBox(k,s,can){const M=MEMO_BOX[k],w=memoOf(s.id),at=w[M.field+"At"],dr=S.dDirty&&S.bmDraft?S.bmDraft:null;
   const info=M.info.filter(([f])=>s.f[f]);
@@ -468,11 +475,10 @@ function drawerRec(k,s,list){const R=REC[k],can=db&&!readOnly,F=S.dForm;
     (F&&F.kind===k?recForm(k,F.id&&S[k].find(x=>x.id===F.id)):can?`<div style="display:flex;justify-content:flex-end"><button class="btn sm pri" data-fnew="${k}">특이사항 추가</button></div>`:"")+
     (list.length?`<div class="card list">${list.slice().sort(byMonth).map(n=>recRow(k,n,true)).join("")}</div>`:`<div class="empty"><b>${R.title}이 없습니다</b>${can?"‘특이사항 추가’를 눌러 입력하세요.":""}</div>`)+`</div></section>`;
   if(k!=="notes")return memoBox(k,s,can)+h;
-  const w=S.wagenotes[s.id]||{},d=S.dDirty&&S.wnDraft?S.wnDraft:{ordinary:w.ordinary||"",severance:w.severance||""};
+  const w=S.wagenotes[s.id]||{},d=S.dDirty&&S.wnDraft?S.wnDraft:null;
   return memoBox(k,s,can)+`<section id="wnBox"><div style="display:flex;align-items:center;gap:10px"><h3 class="sec-t" style="margin:0">통상임금·퇴직금 메모</h3><span class="tiny muted">${w.updatedAt?`마지막 저장 ${esc(w.updatedAt.slice(0,10))}`:""}</span>${can?`<button class="btn sm pri" id="wnSave" style="margin-left:auto">메모 저장</button>`:""}</div>
       ${legalRef()}
-      <label class="f" style="margin-top:8px">통상임금 항목이나 포함하지 않는 임금항목<span class="tiny muted">임금체불에 대한 문제 발생이 있는 급여항목</span><textarea class="i" id="wnOrdinary" rows="3" ${can?"":"disabled"} placeholder="사업장에서 통상임금에 포함/제외한 임금항목과 그 근거를 적어 주세요">${esc(d.ordinary)}</textarea></label>
-      <label class="f" style="margin-top:8px">퇴직금 평균임금(통상임금)이나 포함하지 않는 임금항목<span class="tiny muted">임금체불에 대한 문제 발생이 있는 급여항목</span><textarea class="i" id="wnSeverance" rows="3" ${can?"":"disabled"} placeholder="퇴직금 평균임금 산정 시 포함/제외한 임금항목과 그 근거를 적어 주세요">${esc(d.severance)}</textarea></label></section>`+h}
+      ${WN_ITEMS.map(I=>`<h4 class="sub-t">${I.label}</h4>${WN_WHO.map(([t,n,hint])=>`<label class="f" style="margin-top:6px"><span><b class="who">[${n}]</b></span><span class="tiny muted">${hint}</span><textarea class="i" data-wn="${I.f+t}" rows="3" ${can?"":"disabled"} placeholder="${esc(I.ph)}">${esc(d&&d[I.f+t]!=null?d[I.f+t]:wnVal(w,I.f,t))}</textarea></label>`).join("")}`).join("")}</section>`+h}
 function bindDrawerRecords(root,s){const body=$(".drawer .db",root);if(!body)return;
   body.addEventListener("toggle",e=>{if(e.target.matches("details.legal"))S.legalOpen=e.target.open},true);
   const redraw=()=>renderDrawer(true);
@@ -485,7 +491,7 @@ function bindDrawerRecords(root,s){const body=$(".drawer .db",root);if(!body)ret
     const ne=t.closest("[data-red]");if(ne){S.dForm={kind:ne.dataset.k,id:ne.dataset.red};redraw();$("#dForm").scrollIntoView({block:"nearest"});return}
     const idl=t.closest("[data-idel]");if(idl){armDelete(idl,async()=>{try{await db.doc("issues/"+idl.dataset.idel).delete();toast("삭제했습니다");redraw()}catch(x){err(x)}});return}
     const ndl=t.closest("[data-rdel]");if(ndl){armDelete(ndl,async()=>{try{await db.doc(ndl.dataset.k+"/"+ndl.dataset.rdel).delete();toast("삭제했습니다");redraw()}catch(x){err(x)}});return}
-    if(t.id==="wnSave"){const d={ordinary:$("#wnOrdinary").value,severance:$("#wnSeverance").value};
+    if(t.id==="wnSave"){const d=readWn();
       (async()=>{try{await db.doc("wagenotes/"+s.id).set({...memoOf(s.id),...d,updatedAt:new Date().toISOString(),by:uid||""});S.dDirty=false;S.wnDraft=null;toast("메모를 저장했습니다");redraw()}catch(x){err(x)}})()}
     if(t.id==="emAdd"){S.sfDraft=readSf($("#sfBox"));S.sfDraft.em.push({role:"",name:"",phone:""});S.dDirty=true;redraw();$$("#sfBox tr[data-em] [data-f=role]").pop()?.focus();return}
     const emd=t.closest("[data-emdel]");if(emd){S.sfDraft=readSf($("#sfBox"));S.sfDraft.em.splice(+emd.dataset.emdel,1);S.dDirty=true;redraw();return}
@@ -497,7 +503,7 @@ function bindDrawerRecords(root,s){const body=$(".drawer .db",root);if(!body)ret
   body.addEventListener("change",async e=>{const ss=e.target.closest("[data-sst]");if(ss){try{await db.doc("safety/"+ss.dataset.sst).update({state:ss.value,updatedAt:new Date().toISOString()});toast("‘"+ss.value+"’(으)로 바꿨습니다")}catch(x){err(x)}return}
     const st=e.target.closest("[data-st]");if(!st)return;
     try{await db.doc("issues/"+st.dataset.st).update({status:st.value,updatedAt:new Date().toISOString()});toast("상태를 ‘"+st.value+"’(으)로 바꿨습니다")}catch(x){err(x)}});
-  body.addEventListener("input",e=>{if(e.target.id==="wnOrdinary"||e.target.id==="wnSeverance"){S.dDirty=true;S.wnDraft={ordinary:$("#wnOrdinary").value,severance:$("#wnSeverance").value}}
+  body.addEventListener("input",e=>{if(e.target.closest("#wnBox [data-wn]")){S.dDirty=true;S.wnDraft=readWn()}
     if(e.target.dataset.mb){S.dDirty=true;S.bmDraft={...(S.bmDraft||{}),[e.target.dataset.mb]:e.target.value}}
     if(e.target.closest("#sfBox")){S.dDirty=true;S.sfDraft=readSf($("#sfBox"))}});
   body.addEventListener("change",e=>{if(e.target.closest("#sfBox")){S.dDirty=true;S.sfDraft=readSf($("#sfBox"))}});
