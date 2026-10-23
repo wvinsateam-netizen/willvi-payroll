@@ -439,9 +439,9 @@ const MEMO_BOX={
       {f:"payrollHr",legacy:"payroll",tag:"인사팀",label:"급여 정산 방식 설명",hint:"급여 산정 기준, 수당·공제 정산, 소급·퇴직 정산 처리 방식 등",ph:"예) 전월 1일~말일 근태로 매월 10일 지급. 연장수당은 실적 확인 후 익월 정산"}],
     info:[["급여일","급여일"],["급여산정 시작일","급여산정 시작일"],["급여산정 종료일","급여산정 종료일"],["퇴직금 적립방식","퇴직금 적립방식"],["연차수당 적립방식","연차수당 적립방식"]]}};
 // 통상임금·퇴직금 메모: 항목마다 [인사팀]·[사업부] 칸. 예전 한 칸 메모(ordinary·severance)는 [인사팀] 칸으로 보여 줌
-const WN_ITEMS=[{f:"ordinary",label:"통상임금 항목이나 포함하지 않는 임금항목",ph:"사업장에서 통상임금에 포함/제외한 임금항목과 그 근거를 적어 주세요"},
-  {f:"severance",label:"퇴직금 평균임금(통상임금)이나 포함하지 않는 임금항목",ph:"퇴직금 평균임금 산정 시 포함/제외한 임금항목과 그 근거를 적어 주세요"}];
-const WN_WHO=[["Hr","인사팀","임금체불에 대한 문제 발생이 있는 급여항목"],["Biz","사업부","현장에서 지급하는 수당·상여 등 확인이 필요한 급여항목"]];
+const WN_ITEMS=[{f:"ordinary",label:"통상임금 항목이나 포함하지 않는 임금항목",ph:"사업장에서 통상임금에 포함/제외한 임금항목과 그 근거를 적어 주세요",Hr:"임금체불에 대한 문제 발생이 있는 임금항목",Biz:"통상임금에 제외한 임금항목에 대한 사유 및 해결방안"},
+  {f:"severance",label:"퇴직금 평균임금(통상임금)이나 포함하지 않는 임금항목",ph:"퇴직금 평균임금 산정 시 포함/제외한 임금항목과 그 근거를 적어 주세요",Hr:"임금체불에 대한 문제 발생이 있는 임금항목",Biz:"퇴직금에 제외한 임금항목에 대한 사유 및 해결방안"}];
+const WN_WHO=[["Hr","인사팀"],["Biz","사업부"]];
 const wnVal=(w,f,t)=>w[f+t]!==undefined?w[f+t]:t==="Hr"?(w[f]||""):"";
 const wnText=(w,f)=>WN_WHO.map(([t,n])=>{const v=wnVal(w,f,t);return v?`[${n}] ${v}`:""}).filter(Boolean).join(" / ");
 const readWn=()=>{const v={};$$("#wnBox [data-wn]").forEach(el=>{v[el.dataset.wn]=el.value});return v};
@@ -478,7 +478,7 @@ function drawerRec(k,s,list){const R=REC[k],can=db&&!readOnly,F=S.dForm;
   const w=S.wagenotes[s.id]||{},d=S.dDirty&&S.wnDraft?S.wnDraft:null;
   return memoBox(k,s,can)+`<section id="wnBox"><div style="display:flex;align-items:center;gap:10px"><h3 class="sec-t" style="margin:0">통상임금·퇴직금 메모</h3><span class="tiny muted">${w.updatedAt?`마지막 저장 ${esc(w.updatedAt.slice(0,10))}`:""}</span>${can?`<button class="btn sm pri" id="wnSave" style="margin-left:auto">메모 저장</button>`:""}</div>
       ${legalRef()}
-      ${WN_ITEMS.map(I=>`<h4 class="sub-t">${I.label}</h4>${WN_WHO.map(([t,n,hint])=>`<label class="f" style="margin-top:6px"><span><b class="who">[${n}]</b></span><span class="tiny muted">${hint}</span><textarea class="i" data-wn="${I.f+t}" rows="3" ${can?"":"disabled"} placeholder="${esc(I.ph)}">${esc(d&&d[I.f+t]!=null?d[I.f+t]:wnVal(w,I.f,t))}</textarea></label>`).join("")}`).join("")}</section>`+h}
+      ${WN_ITEMS.map(I=>`<h4 class="sub-t">${I.label}</h4>${WN_WHO.map(([t,n])=>`<label class="f" style="margin-top:6px"><span><b class="who">[${n}]</b></span><span class="tiny muted">${I[t]}</span><textarea class="i" data-wn="${I.f+t}" rows="3" ${can?"":"disabled"} placeholder="${esc(I.ph)}">${esc(d&&d[I.f+t]!=null?d[I.f+t]:wnVal(w,I.f,t))}</textarea></label>`).join("")}`).join("")}</section>`+h}
 function bindDrawerRecords(root,s){const body=$(".drawer .db",root);if(!body)return;
   body.addEventListener("toggle",e=>{if(e.target.matches("details.legal"))S.legalOpen=e.target.open},true);
   const redraw=()=>renderDrawer(true);
