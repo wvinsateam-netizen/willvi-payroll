@@ -113,7 +113,7 @@
       var box = document.createElement("div");
       box.className = "conn-fail";
       box.innerHTML = '<form autocomplete="on">' +
-        '<b>윌앤비전 급여·노무</b><span class="muted">팀 공용 계정으로 로그인하세요.</span>' +
+        '<b>사업장 정보 관리</b><span class="muted">팀 공용 계정으로 로그인하세요.</span>' +
         '<label class="f">이메일<input class="i" type="email" name="email" autocomplete="username" required></label>' +
         '<label class="f">비밀번호<input class="i" type="password" name="pw" autocomplete="current-password" required></label>' +
         '<span class="msg" role="alert"></span>' +
